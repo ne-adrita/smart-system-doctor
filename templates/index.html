@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Smart System Doctor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+
+    <h1>🧠 Smart System Doctor</h1>
+
+    <div class="card">
+        <h2>CPU Usage</h2>
+        <p id="cpu">Loading...</p>
+    </div>
+
+    <div class="card">
+        <h2>RAM Usage</h2>
+        <p id="ram">Loading...</p>
+    </div>
+
+    <div class="card">
+        <h2>Disk Usage</h2>
+        <p id="disk">Loading...</p>
+    </div>
+
+    <div class="card">
+        <h2>🛡 Security Score</h2>
+        <p id="security">Loading...</p>
+    </div>
+    
+    <div class="card">
+        <h2>⚠ Issues Detected</h2>
+        <p id="issues">Loading...</p>
+    </div>
+
+    <div class="card">
+        <h2>📊 CPU Usage Graph</h2>
+        <canvas id="cpuChart"></canvas>
+    </div>
+    
+    <div class="card">
+        <h2>📊 RAM Usage Graph</h2>
+        <canvas id="ramChart"></canvas>
+    </div>
+
+    <div class="card">
+        <h2>🧠 OS Analysis</h2>
+        <p id="osExplain">Analyzing system behavior...</p>
+    </div>
+
+    <div class="card">
+        <h2>💀 Top Processes</h2>
+        <ul id="processList"></ul>
+    </div>
+    
+    <div class="card">
+        <h2>⚡ Actions</h2>
+        <button onclick="freeMemory()">Free Memory</button>
+    </div>
+
+    <div class="card">
+        <h2>🧠 System Health Score</h2>
+        <p id="health"></p>
+        <p id="healthState"></p>
+    </div>
+    
+    <div class="card">
+        <h2>🛡 Security Status</h2>
+        <p id="security"></p>
+        <p id="securityState"></p>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+
+</body>
+</html>
