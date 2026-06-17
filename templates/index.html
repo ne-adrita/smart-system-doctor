@@ -1,78 +1,123 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Smart System Doctor</title>
+    <title>Smart System Doctor Pro</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Enhanced styles in style.css */
+    </style>
 </head>
-
 <body>
 
-    <h1>🧠 Smart System Doctor</h1>
-
-    <div class="card">
-        <h2>CPU Usage</h2>
-        <p id="cpu">Loading...</p>
-    </div>
-
-    <div class="card">
-        <h2>RAM Usage</h2>
-        <p id="ram">Loading...</p>
-    </div>
-
-    <div class="card">
-        <h2>Disk Usage</h2>
-        <p id="disk">Loading...</p>
-    </div>
-
-    <div class="card">
-        <h2>🛡 Security Score</h2>
-        <p id="security">Loading...</p>
-    </div>
+    <h1>🧠 Smart System Doctor Pro</h1>
     
-    <div class="card">
-        <h2>⚠ Issues Detected</h2>
-        <p id="issues">Loading...</p>
-    </div>
-
-    <div class="card">
-        <h2>📊 CPU Usage Graph</h2>
-        <canvas id="cpuChart"></canvas>
-    </div>
-    
-    <div class="card">
-        <h2>📊 RAM Usage Graph</h2>
-        <canvas id="ramChart"></canvas>
-    </div>
-
-    <div class="card">
-        <h2>🧠 OS Analysis</h2>
-        <p id="osExplain">Analyzing system behavior...</p>
-    </div>
-
-    <div class="card">
-        <h2>💀 Top Processes</h2>
-        <ul id="processList"></ul>
-    </div>
-    
-    <div class="card">
-        <h2>⚡ Actions</h2>
-        <button onclick="freeMemory()">Free Memory</button>
-    </div>
-
-    <div class="card">
-        <h2>🧠 System Health Score</h2>
-        <p id="health"></p>
-        <p id="healthState"></p>
-    </div>
-    
-    <div class="card">
-        <h2>🛡 Security Status</h2>
-        <p id="security"></p>
-        <p id="securityState"></p>
+    <div class="grid-container">
+        <!-- System Overview -->
+        <div class="card">
+            <h2>📊 System Overview</h2>
+            <div class="stats-grid">
+                <div>
+                    <div class="stat-label">CPU</div>
+                    <div class="stat-value" id="cpu">0%</div>
+                </div>
+                <div>
+                    <div class="stat-label">RAM</div>
+                    <div class="stat-value" id="ram">0%</div>
+                </div>
+                <div>
+                    <div class="stat-label">DISK</div>
+                    <div class="stat-value" id="disk">0%</div>
+                </div>
+                <div>
+                    <div class="stat-label">Processes</div>
+                    <div class="stat-value" id="processCount">0</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Health Score -->
+        <div class="card">
+            <h2>🏥 System Health</h2>
+            <p id="health">Loading...</p>
+            <p id="healthState">Loading...</p>
+            <div id="healthIssues"></div>
+        </div>
+        
+        <!-- Security Score -->
+        <div class="card">
+            <h2>🛡️ Security Status</h2>
+            <p id="security">Loading...</p>
+            <p id="securityState">Loading...</p>
+            <div id="securityWarnings"></div>
+        </div>
+        
+        <!-- Charts -->
+        <div class="card full-width">
+            <h2>📈 CPU Usage Graph</h2>
+            <canvas id="cpuChart"></canvas>
+        </div>
+        
+        <div class="card full-width">
+            <h2>📈 RAM Usage Graph</h2>
+            <canvas id="ramChart"></canvas>
+        </div>
+        
+        <div class="card full-width">
+            <h2>📈 Security Score Graph</h2>
+            <canvas id="securityChart"></canvas>
+        </div>
+        
+        <!-- Predictions -->
+        <div class="card full-width">
+            <h2>🔮 Predictive Analytics</h2>
+            <div id="predictions">Loading...</div>
+        </div>
+        
+        <!-- OS Analysis -->
+        <div class="card full-width">
+            <h2>🧠 OS Intelligence</h2>
+            <p id="brainBox">Analyzing...</p>
+            <p id="osExplain">System analysis...</p>
+        </div>
+        
+        <!-- Alert -->
+        <div class="card full-width" id="alertBox">
+            System checking...
+        </div>
+        
+        <!-- Recommendations -->
+        <div class="card full-width">
+            <h2>🎯 Smart Recommendations</h2>
+            <p id="recommendBox"></p>
+        </div>
+        
+        <!-- Security Details -->
+        <div class="card full-width">
+            <h2>🚨 Security Threats</h2>
+            <ul id="threatsList"></ul>
+        </div>
+        
+        <div class="card full-width">
+            <h2>🔌 Open Ports</h2>
+            <ul id="portsList"></ul>
+        </div>
+        
+        <!-- Process List -->
+        <div class="card full-width">
+            <h2>💀 Top Processes</h2>
+            <ul id="processList"></ul>
+        </div>
+        
+        <!-- Actions -->
+        <div class="card full-width">
+            <h2>⚡ System Actions</h2>
+            <button onclick="freeMemory()" class="action-btn">Free Memory</button>
+            <button onclick="exportData()" class="action-btn">Export Data</button>
+            <button onclick="update()" class="action-btn">Refresh</button>
+        </div>
     </div>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>
-
 </body>
 </html>
