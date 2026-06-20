@@ -1,38 +1,37 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Smart System Doctor Pro</title>
+    <title>Smart System Doctor Pro v4.0</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        /* Enhanced styles in style.css */
-    </style>
 </head>
 <body>
 
-    <h1>🧠 Smart System Doctor Pro</h1>
+    <h1>🧠 Smart System Doctor Pro v4.0</h1>
     
     <div class="grid-container">
         <!-- System Overview -->
         <div class="card">
             <h2>📊 System Overview</h2>
-            <div class="stats-grid">
-                <div>
-                    <div class="stat-label">CPU</div>
-                    <div class="stat-value" id="cpu">0%</div>
-                </div>
-                <div>
-                    <div class="stat-label">RAM</div>
-                    <div class="stat-value" id="ram">0%</div>
-                </div>
-                <div>
-                    <div class="stat-label">DISK</div>
-                    <div class="stat-value" id="disk">0%</div>
-                </div>
-                <div>
-                    <div class="stat-label">Processes</div>
-                    <div class="stat-value" id="processCount">0</div>
-                </div>
+        
+            <div class="metric">
+                <span>CPU Usage</span>
+                <strong id="cpu">0%</strong>
+            </div>
+        
+            <div class="metric">
+                <span>RAM Usage</span>
+                <strong id="ram">0%</strong>
+            </div>
+        
+            <div class="metric">
+                <span>Disk Usage</span>
+                <strong id="disk">0%</strong>
+            </div>
+        
+            <div class="metric">
+                <span>Running Processes</span>
+                <strong id="processCount">0</strong>
             </div>
         </div>
         
@@ -105,16 +104,18 @@
         
         <!-- Process List -->
         <div class="card full-width">
-            <h2>💀 Top Processes</h2>
+            <h2>💀 Top Processes with Risk Classification</h2>
             <ul id="processList"></ul>
         </div>
         
         <!-- Actions -->
         <div class="card full-width">
             <h2>⚡ System Actions</h2>
-            <button onclick="freeMemory()" class="action-btn">Free Memory</button>
-            <button onclick="exportData()" class="action-btn">Export Data</button>
-            <button onclick="update()" class="action-btn">Refresh</button>
+            <button onclick="freeMemory()" class="action-btn">🧹 Free Memory</button>
+            <button onclick="generateReport()" class="action-btn">📄 Generate Report</button>
+            <button onclick="exportData()" class="action-btn">💾 Export Data</button>
+            <button onclick="update()" class="action-btn">🔄 Refresh</button>
+            <div id="reportStatus" style="margin-top: 10px; color: #2ecc71;"></div>
         </div>
     </div>
 

@@ -4,7 +4,6 @@
 function explain(cpu, ram, predictions){
     let insights = [];
     
-    // Current state analysis
     if(cpu > 80){
         insights.push("🔥 CPU bottleneck detected - scheduler overload");
         if(predictions && predictions.cpu && predictions.cpu.trend === "increasing"){
@@ -75,7 +74,6 @@ function recommendation(cpu, ram, security, diagnostics){
 function systemBrain(cpu, ram, security, predictions){
     let analysis = [];
     
-    // Predictive analysis
     if(predictions && predictions.cpu && predictions.cpu.trend === "increasing"){
         analysis.push("📈 CPU load expected to rise - prepare for scaling");
     }
@@ -83,12 +81,10 @@ function systemBrain(cpu, ram, security, predictions){
         analysis.push("📈 Memory usage increasing - check for leaks");
     }
     
-    // Security analysis
     if(security < 60){
         analysis.push("🔐 Security posture compromised - analyze threats");
     }
     
-    // Performance analysis
     if(cpu > 70 || ram > 70){
         analysis.push("⚙️ Resource contention detected - optimize processes");
     }
@@ -111,7 +107,7 @@ let labels = [];
 let rawDataHistory = [];
 
 /* =========================
-   INIT CHARTS (CPU + RAM + DISK + SECURITY)
+   INIT CHARTS
 ========================= */
 const cpuChart = new Chart(document.getElementById('cpuChart'), {
     type: 'line',
@@ -167,7 +163,6 @@ const ramChart = new Chart(document.getElementById('ramChart'), {
     }
 });
 
-// Additional chart for security
 const securityChart = new Chart(document.getElementById('securityChart'), {
     type: 'line',
     data: {
@@ -205,9 +200,6 @@ async function update(){
         
         let time = new Date().toLocaleTimeString();
         
-        /* =====================
-           GRAPH DATA UPDATE
-        ====================== */
         labels.push(time);
         cpuData.push(data.cpu);
         ramData.push(data.ram);
@@ -224,13 +216,12 @@ async function update(){
             rawDataHistory.shift();
         }
         
-        /* =====================
-           SYSTEM INFO UI
-        ====================== */
+        // System Info
         document.getElementById("cpu").innerHTML = `<strong>${data.cpu}%</strong>`;
         document.getElementById("ram").innerHTML = `<strong>${data.ram}%</strong>`;
         document.getElementById("disk").innerHTML = `<strong>${data.disk}%</strong>`;
-        document.getElementById("processCount").innerHTML = `Active Processes: <strong>${data.process_count}</strong>`;
+        document.getElementById("processCount").innerText =
+    data.process_count;
         
         // Health section
         document.getElementById("health").innerHTML = 
@@ -238,7 +229,6 @@ async function update(){
         document.getElementById("healthState").innerHTML = 
             `<span style="color: ${data.health_color}">${data.health_state}</span>`;
         
-        // Health issues
         let issuesList = document.getElementById("healthIssues");
         if(issuesList && data.health_issues && data.health_issues.length > 0){
             issuesList.innerHTML = data.health_issues.map(issue => 
@@ -267,7 +257,6 @@ async function update(){
         document.getElementById("securityState").innerHTML = 
             `<span style="color: ${data.security_color}">${data.security_state}</span>`;
         
-        // Security warnings
         let warningsList = document.getElementById("securityWarnings");
         if(warningsList && data.security_warnings && data.security_warnings.length > 0){
             warningsList.innerHTML = data.security_warnings.map(warning => 
@@ -277,7 +266,6 @@ async function update(){
             warningsList.innerHTML = '<li style="color: #2ecc71;">No security warnings</li>';
         }
         
-        // Security threats
         let threatsList = document.getElementById("threatsList");
         if(threatsList && data.security_threats && data.security_threats.length > 0){
             threatsList.innerHTML = data.security_threats.map(threat => 
@@ -290,7 +278,6 @@ async function update(){
             threatsList.innerHTML = '<li style="color: #2ecc71;">No suspicious processes</li>';
         }
         
-        // Open ports
         let portsList = document.getElementById("portsList");
         if(portsList && data.security_ports && data.security_ports.length > 0){
             portsList.innerHTML = data.security_ports.map(port => 
@@ -300,9 +287,7 @@ async function update(){
             portsList.innerHTML = '<li style="color: #2ecc71;">No open risky ports</li>';
         }
         
-        /* =====================
-           ALERT, RECOMMENDATION, BRAIN
-        ====================== */
+        // Alerts & Recommendations
         document.getElementById("alertBox").innerHTML = 
             systemAlert(data.cpu, data.ram, data.security_score, data.health_issues);
         
@@ -312,15 +297,10 @@ async function update(){
         document.getElementById("brainBox").innerHTML = 
             systemBrain(data.cpu, data.ram, data.security_score, data.health_predictions);
         
-        /* =====================
-           OS EXPLANATION BOX
-        ====================== */
         document.getElementById("osExplain").innerHTML = 
             explain(data.cpu, data.ram, data.health_predictions);
         
-        /* =====================
-           PROCESS LIST UI
-        ====================== */
+        // Process List with Risk Classification
         let list = document.getElementById("processList");
         if(list){
             list.innerHTML = "";
@@ -328,17 +308,24 @@ async function update(){
             data.processes.forEach((p, index) => {
                 let li = document.createElement("li");
                 let threatLevel = data.security_threats.find(t => t.pid === p.pid);
-                let color = threatLevel ? '#e74c3c' : '#ecf0f1';
+                
+                // Color coding based on risk
+                let riskColor = '#ecf0f1';
+                if(p.risk === 'HIGH') riskColor = '#e74c3c';
+                else if(p.risk === 'MEDIUM') riskColor = '#f39c12';
                 
                 li.style.borderBottom = '1px solid #2c3e50';
                 li.style.padding = '8px 0';
                 li.innerHTML = `
-                    <span style="color: ${color};">
+                    <span style="color: ${riskColor};">
                         <strong>${p.name || 'Unknown'}</strong>
+                        <span style="font-size: 0.8rem; background: ${riskColor}; color: white; padding: 2px 6px; border-radius: 3px; margin-left: 5px;">
+                            ${p.risk || 'LOW'} RISK
+                        </span>
+                        ${threatLevel ? '🚨' : ''}
                     </span>
                     <span style="float: right;">
                         Memory: ${(p.memory_percent || 0).toFixed(1)}% | CPU: ${(p.cpu_percent || 0).toFixed(1)}%
-                        ${threatLevel ? `🚨 ${threatLevel.severity}` : ''}
                         <button onclick="killProcess(${p.pid})" style="margin-left:10px; background:#e74c3c; color:white; border:none; padding:2px 8px; border-radius:3px; cursor:pointer;">
                             Kill
                         </button>
@@ -351,9 +338,6 @@ async function update(){
             });
         }
         
-        /* =====================
-           UPDATE CHARTS
-        ====================== */
         cpuChart.update();
         ramChart.update();
         securityChart.update();
@@ -364,7 +348,7 @@ async function update(){
 }
 
 /* =========================
-   KILL PROCESS (SAFE)
+   KILL PROCESS
 ========================= */
 async function killProcess(pid){
     if(!confirm(`Terminate process ${pid}?`)) return;
@@ -411,7 +395,7 @@ Connections: ${data.connections ? data.connections.length : 0}
 }
 
 /* =========================
-   FREE MEMORY ACTION
+   FREE MEMORY
 ========================= */
 async function freeMemory(){
     try{
@@ -424,6 +408,33 @@ async function freeMemory(){
         update();
     } catch(err){
         console.log("Memory error:", err);
+    }
+}
+
+/* =========================
+   GENERATE REPORT
+========================= */
+async function generateReport(){
+    try{
+        document.getElementById('reportStatus').innerHTML = '⏳ Generating report...';
+        
+        let res = await fetch('/report');
+        let blob = await res.blob();
+        
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement('a');
+        a.href = url;
+        a.download = 'system_report.pdf';
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        document.getElementById('reportStatus').innerHTML = '✅ Report downloaded!';
+        setTimeout(() => {
+            document.getElementById('reportStatus').innerHTML = '';
+        }, 3000);
+    } catch(err){
+        console.log("Report error:", err);
+        document.getElementById('reportStatus').innerHTML = '❌ Report generation failed';
     }
 }
 

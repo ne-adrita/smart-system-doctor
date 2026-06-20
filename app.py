@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, send_file
 import psutil
 import json
 from datetime import datetime
@@ -14,8 +14,13 @@ from modules.security import (
     SecurityAnalyzer,
     get_security_details
 )
+from database import init_db, save_log, get_history, get_statistics
+from report_generator import generate_system_report
 
 app = Flask(__name__)
+
+# Initialize database
+init_db()
 
 # =========================
 # CACHE FOR PREDICTIVE ANALYTICS
@@ -48,13 +53,20 @@ def data():
         'packets_recv': net_io.packets_recv
     }
     
-    # =====================
-    # PROCESS LIST WITH DETAILS
-    # =====================
+    # Process list with risk classification
     processes = []
     for p in psutil.process_iter(['pid', 'name', 'memory_percent', 'cpu_percent', 'exe', 'username']):
         try:
-            processes.append(p.info)
+            p_info = p.info
+            # Add risk classification
+            mem = p_info.get('memory_percent', 0)
+            if mem > 20:
+                p_info['risk'] = "HIGH"
+            elif mem > 10:
+                p_info['risk'] = "MEDIUM"
+            else:
+                p_info['risk'] = "LOW"
+            processes.append(p_info)
         except:
             pass
     
@@ -64,6 +76,7 @@ def data():
         reverse=True
     )
     top_processes = processes[:10]
+    process_count = len(psutil.pids())
     
     # =====================
     # ENHANCED SECURITY MODULE
@@ -82,6 +95,15 @@ def data():
     health_state = system_status(health_score)
     
     # =====================
+    # PROCESS RISK CLASSIFICATION
+    # =====================
+    risk_classification = {
+        'high': [p for p in top_processes if p.get('risk') == 'HIGH'],
+        'medium': [p for p in top_processes if p.get('risk') == 'MEDIUM'],
+        'low': [p for p in top_processes if p.get('risk') == 'LOW']
+    }
+    
+    # =====================
     # SYSTEM DIAGNOSTICS
     # =====================
     diagnostics = generate_diagnostics(cpu, ram, disk, security_data, health_details)
@@ -90,6 +112,11 @@ def data():
     # PREDICTIVE ANALYTICS
     # =====================
     predictions = health_details.get('predictions', {})
+    
+    # =====================
+    # SAVE TO DATABASE
+    # =====================
+    save_log(cpu, ram, disk, health_score, sec_score, process_count)
     
     # =====================
     # RESPONSE JSON
@@ -102,7 +129,8 @@ def data():
         "timestamp": datetime.now().isoformat(),
         
         "processes": top_processes,
-        "process_count": len(psutil.pids()),
+        "process_count": process_count,
+        "risk_classification": risk_classification,
         
         "health_score": health_score,
         "health_state": health_state['status'],
@@ -222,7 +250,6 @@ def kill():
         else:
             p.terminate()
         
-        # Wait for process to terminate
         gone, alive = psutil.wait_procs([p], timeout=3)
         
         if alive:
@@ -236,17 +263,79 @@ def kill():
 @app.route('/free-memory', methods=['POST'])
 def free_memory():
     try:
-        # Clear system caches
         import gc
         gc.collect()
         
         return jsonify({
             "status": "Memory optimization completed",
-            "freed_mb": 0,  # Simulated
+            "freed_mb": 0,
             "timestamp": datetime.now().isoformat()
         })
     except Exception as e:
         return jsonify({"status": f"Memory optimization failed: {str(e)}"})
+
+@app.route('/report', methods=['GET'])
+def generate_report():
+    """Generate and download PDF report"""
+    try:
+        # Get current system data
+        cpu = psutil.cpu_percent(interval=0.5)
+        ram = psutil.virtual_memory().percent
+        disk = psutil.disk_usage('/').percent
+        
+        # Get security data
+        security_data = get_security_details()
+        threats = security_data['threats']['threats'][:5]
+        
+        # Get health data
+        health_details = get_health_details(cpu, ram, disk)
+        health_score = health_details['score']
+        health_state = system_status(health_score)
+        
+        # Prepare report data
+        report_data = {
+            'cpu': cpu,
+            'ram': ram,
+            'disk': disk,
+            'health_score': health_score,
+            'health_state': health_state['status'],
+            'security_score': security_data['score']['score'],
+            'security_state': security_data['status']['status'],
+            'threats': threats,
+            'process_count': len(psutil.pids())
+        }
+        
+        # Generate PDF
+        filename = generate_system_report(report_data)
+        
+        return send_file(filename, as_attachment=True, download_name=filename)
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/history')
+def get_history_data():
+    """Get historical data for charts"""
+    limit = request.args.get('limit', 50, type=int)
+    history = get_history(limit)
+    
+    return jsonify({
+        'data': [{
+            'time': row[0],
+            'cpu': row[1],
+            'ram': row[2],
+            'disk': row[3],
+            'health': row[4],
+            'security': row[5],
+            'processes': row[6]
+        } for row in history]
+    })
+
+@app.route('/statistics')
+def get_stats():
+    """Get statistical analysis"""
+    stats = get_statistics()
+    return jsonify(stats)
 
 @app.route('/system-info')
 def system_info():
@@ -283,4 +372,4 @@ def process_details(pid):
         return jsonify({"error": str(e)}), 404
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5001)
+    app.run(debug=True, host='0.0.0.0', port=5001)

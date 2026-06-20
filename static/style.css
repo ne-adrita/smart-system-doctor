@@ -58,8 +58,8 @@ h1 {
 
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 15px;
+    grid-template-columns: repeat(4, minmax(80px, 1fr));
+    gap: 10px;
 }
 
 .stat-label {
@@ -70,9 +70,22 @@ h1 {
 }
 
 .stat-value {
-    font-size: 2rem;
+    font-size: 1.6rem;
     font-weight: bold;
+    overflow-wrap: break-word;
     color: #ecf0f1;
+}
+
+.overview-item{
+    display:flex;
+    justify-content:space-between;
+    padding:12px 0;
+    border-bottom:1px solid rgba(255,255,255,.1);
+}
+
+.overview-item span:last-child{
+    font-weight:bold;
+    font-size:1.6rem;
 }
 
 #alertBox {
