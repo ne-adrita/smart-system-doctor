@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# OS junk
+.DS_Store
+__MACOSX/
+Thumbs.db
+
+# Application runtime data
+system_logs.db
+system_logs.db-wal
+system_logs.db-shm
+logs/
+reports/
+
+# Environment
+.env
+
+# Editor
+.idea/
+.vscode/
+*.swp
