@@ -110,10 +110,13 @@ smart-system-doctor/
 │       └── vendor/chart.umd.js
 │
 └── tests/
+    ├── test_api.py
+    ├── test_database.py
     ├── test_health.py
-    ├── test_security.py
     ├── test_prediction.py
-    └── test_api.py
+    ├── test_process_control.py
+    ├── test_pruning.py
+    └── test_security.py
 ```
 
 ---
@@ -314,9 +317,29 @@ SQLite with tables: `system_metrics`, `process_snapshots`, `security_events`, `p
 
 ---
 
-## Screenshots
+## Real-Time Monitoring
 
-*(Add screenshots here)*
+The dashboard is **genuinely dynamic**: it updates live without requiring a full browser page reload. It uses REST API polling (not WebSockets) driven by a central refresh manager in `static/js/script.js`, with differentiated refresh intervals matched to the cost and importance of each operation:
+
+| Section            | Refresh interval |
+| ------------------ | ---------------- |
+| System metrics     | ~2 s             |
+| Health             | ~3 s             |
+| Processes          | ~5 s             |
+| History            | ~10 s            |
+| Security           | ~20 s            |
+| Ports              | ~20 s            |
+| Recommendations    | ~20 s            |
+| Predictions        | ~30 s            |
+
+Implementation notes:
+
+- Each section polls on its own timer with **overlap protection** (a tick is skipped if the previous request for that section is still in flight).
+- When the browser tab is hidden, expensive polling stops; it **resumes and refreshes immediately** when the user returns.
+- A connection indicator shows **LIVE**, **RECONNECTING…**, or **OFFLINE** based on actual API responses.
+- Every section shows a **Last updated** timestamp, and data is flagged as **possibly stale** if the backend stops responding.
+- Live charts are built from **one coherent snapshot per update cycle** — a single point is pushed per system poll, so timestamps stay synchronized across all chart series.
+- Fast metrics, process monitoring, health, security, ports, history, predictions, and recommendations all update in place — no page reload required.
 
 ---
 

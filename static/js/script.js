@@ -55,7 +55,7 @@ const state = {
     security: { score: 100, status: "Safe", color: "#2ecc71", findings: [], ports: [], reasons: [], last_scan: null },
     ports: [],
     processes: [],
-    live: { labels: [], cpu: [], ram: [], disk: [], health: [], security: [] },
+    live: { labels: [], cpu: [], ram: [], disk: [], health: [], security: [], processes: [] },
     range: "live",
     lastSnapshot: null,
     predictions: null,
@@ -264,6 +264,7 @@ async function fetchSystemMetrics() {
     renderAlert();
     renderSnapshot(system);
     updateHeaderTimestamp();
+    updateLiveSnapshot();
 }
 
 function updateHeaderTimestamp() {
@@ -279,7 +280,6 @@ async function fetchHealth() {
     renderTiles();
     renderAlert();
     renderHealthFactors(health.factors, health.issues);
-    if (state.range === "live") pushLivePoint();
 }
 
 /* ---------------- Section: processes ---------------- */
@@ -347,7 +347,6 @@ async function fetchSecurity() {
     renderTiles();
     renderAlert();
     renderSecurity(data);
-    if (state.range === "live") pushLivePoint();
 }
 
 /* ---------------- Section: ports ---------------- */
@@ -538,7 +537,11 @@ function renderPredictions(preds) {
 }
 
 /* ---------------- Live charts ---------------- */
-function pushLivePoint() {
+/* Centralized live snapshot: each logical update cycle (anchored to the
+   fastest, most regular poll — system metrics) collects the current
+   frontend state and pushes exactly ONE coherent chart point. */
+function updateLiveSnapshot() {
+    if (!state.lastUpdate.health) return;
     const now = new Date().toLocaleTimeString();
     const live = state.live;
     live.labels.push(now);
@@ -547,15 +550,18 @@ function pushLivePoint() {
     live.disk.push(state.disk);
     live.health.push(state.health.score);
     live.security.push(state.security.score);
+    live.processes.push(state.lastSnapshot && state.lastSnapshot.process_count != null
+        ? state.lastSnapshot.process_count : 0);
     if (live.labels.length > MAX_LIVE_POINTS) {
-        live.labels.shift(); live.cpu.shift(); live.ram.shift(); live.disk.shift();
-        live.health.shift(); live.security.shift();
+        live.labels.shift();
+        ["cpu", "ram", "disk", "health", "security", "processes"].forEach(k => live[k].shift());
     }
     setChartData(charts.cpu, live.labels.slice(), live.cpu.slice());
     setChartData(charts.ram, live.labels.slice(), live.ram.slice());
     setChartData(charts.disk, live.labels.slice(), live.disk.slice());
     setChartData(charts.health, live.labels.slice(), live.health.slice());
     setChartData(charts.security, live.labels.slice(), live.security.slice());
+    setChartData(charts.processes, live.labels.slice(), live.processes.slice());
 }
 
 function setRange(range) {
@@ -564,7 +570,7 @@ function setRange(range) {
         b.classList.toggle("active", b.dataset.range === range);
     });
     if (range === "live") {
-        pushLivePoint();
+        updateLiveSnapshot();
     } else {
         fetchHistory();
     }

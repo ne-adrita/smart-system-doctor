@@ -351,7 +351,7 @@ class SecurityAnalyzer:
             pid=pid,
             name=name or f"PID {pid}",
             severity=classify_severity(score),
-            heuristic_strength=round(min(Config.CONFIDENCE_CEILING, score / 100.0), 2),
+            heuristic_strength=round(min(Config.HEURISTIC_STRENGTH_CEILING, score / 100.0), 2),
             score=score,
             reasons=reasons,
             evidence=evidence,

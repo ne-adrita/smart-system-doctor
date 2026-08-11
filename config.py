@@ -98,8 +98,8 @@ class Config:
     SUSPICIOUS_MEMORY_PERCENT = _env_float("SUSPICIOUS_MEMORY_PERCENT", 50.0)
     NETWORK_FLAG_CUTOFF = _env_int("NETWORK_FLAG_CUTOFF", 15)
 
-    # Confidence range for heuristic findings (never claim certainty).
-    CONFIDENCE_CEILING = _env_float("CONFIDENCE_CEILING", 0.9)
+    # Upper bound for heuristic strength of findings (never claim certainty).
+    HEURISTIC_STRENGTH_CEILING = _env_float("HEURISTIC_STRENGTH_CEILING", 0.9)
 
     # --- Health scoring --------------------------------------------------
     # Gradual penalty model: penalty grows from the LOW threshold up to
