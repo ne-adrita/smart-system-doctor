@@ -46,7 +46,6 @@ from services.system_monitor import (
 )
 from utils.logging_utils import get_logger
 from utils.process_utils import terminate_process
-from utils.system_utils import format_bytes
 
 config = get_config()
 logger = get_logger(__name__)
@@ -144,7 +143,7 @@ class BackgroundWorker:
         snap = cache.snapshot()
         cpu = get_cpu()
         health = compute_health_score(
-            cpu, snap["ram"], snap["disk_percent"], snap["process_count"], snap["network"]
+            cpu, snap["ram"], snap["disk_percent"], snap["process_count"]
         )
         record_system_metrics(
             cpu=cpu,
@@ -183,20 +182,21 @@ class BackgroundWorker:
 
     def _scan_security(self):
         snap = cache.snapshot()
-        top = process_monitor.get_processes(sort_by="cpu", limit=0)[:40]
-        top.sort(key=lambda p: (p["cpu_percent"] or 0) + (p["memory_percent"] or 0),
-                 reverse=True)
-        top = top[:40]
-
+        # Stage 1 - cheap prefilter over ALL processes so that a suspicious
+        # process is not missed just because it uses little CPU or RAM.
+        all_procs = process_monitor.get_processes(limit=0)
         connections_map = _build_connections_map()
+        candidates = security_analyzer.prefilter_processes(all_procs, connections_map)
+
+        # Stage 2 - enrich only the candidate subset and score it in detail.
         enriched = []
-        for proc in top:
+        for proc in candidates:
             row = _enrich_process(proc)
             if row:
                 row["connections"] = connections_map.get(proc["pid"], [])
                 enriched.append(row)
 
-        findings = security_analyzer.analyze_processes(enriched)
+        findings = security_analyzer.analyze_processes(enriched, connections_map)
         security = security_analyzer.security_score(findings, snap["ports"])
         cache.update(
             findings=[f.to_dict() for f in findings],
@@ -210,14 +210,15 @@ class BackgroundWorker:
                     pid=f.pid, name=f.name,
                     cpu_percent=f.evidence.get("cpu"),
                     memory_percent=f.evidence.get("memory_percent"),
-                    memory_rss=0, username=f.evidence.get("username"),
+                    memory_rss=f.evidence.get("memory_rss") or 0,
+                    username=f.evidence.get("username"),
                     exe=f.evidence.get("exe"), status=None,
                 )
         except Exception:
             logger.warning("Failed to persist security events", exc_info=True)
 
     def run(self):
-        last_moderate = last_history = last_security = last_ports = 0.0
+        last_moderate = last_history = last_security = last_ports = last_prune = 0.0
         while not self._stop.is_set():
             now = time.monotonic()
             try:
@@ -233,9 +234,12 @@ class BackgroundWorker:
                 if now - last_security >= config.SECURITY_SCAN_INTERVAL:
                     self._scan_security()
                     last_security = now
-                if now - last_moderate >= 3600:
+                # History pruning runs on its own independent timer (one hour)
+                # rather than piggy-backing on the moderate-metrics interval.
+                if now - last_prune >= config.PRUNE_INTERVAL:
                     try:
                         prune_history()
+                        last_prune = now
                     except Exception:
                         logger.warning("prune_history failed", exc_info=True)
             except Exception:
@@ -282,6 +286,7 @@ def _enrich_process(proc):
         "username": username,
         "cpu_percent": proc["cpu_percent"],
         "memory_percent": proc["memory_percent"],
+        "memory_rss": proc.get("memory_rss"),
         "ppid": proc["ppid"],
     }
 
@@ -347,7 +352,7 @@ def create_app():
         snap = cache.snapshot()
         cpu = get_cpu()
         health = compute_health_score(
-            cpu, snap["ram"], snap["disk_percent"], snap["process_count"], snap["network"]
+            cpu, snap["ram"], snap["disk_percent"], snap["process_count"]
         )
         return ok(health.to_dict())
 
@@ -459,7 +464,7 @@ def create_app():
         snap = cache.snapshot()
         cpu = get_cpu()
         health = compute_health_score(
-            cpu, snap["ram"], snap["disk_percent"], snap["process_count"], snap["network"]
+            cpu, snap["ram"], snap["disk_percent"], snap["process_count"]
         )
         predictions = get_predictions(hours=1)
         recs = recommendation_service.build_recommendations(
@@ -501,8 +506,7 @@ def create_app():
             snap = cache.snapshot()
             cpu = get_cpu()
             health = compute_health_score(
-                cpu, snap["ram"], snap["disk_percent"], snap["process_count"],
-                snap["network"],
+                cpu, snap["ram"], snap["disk_percent"], snap["process_count"]
             )
             predictions = get_predictions(hours=2)
             recs = recommendation_service.build_recommendations(

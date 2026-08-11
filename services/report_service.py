@@ -159,17 +159,19 @@ def generate_report(report_data, filename=None):
     story.append(_h("6. Suspicious Processes"))
     findings = report_data.get("findings") or []
     if findings:
-        rows = [["PID", "Process", "Severity", "Score", "Confidence"]]
+        rows = [["PID", "Process", "Severity", "Score", "Strength"]]
         for f in findings[:15]:
             rows.append([
                 f.get("pid", "-"), f.get("name", "-"), f.get("severity", "-"),
-                f.get("score", "-"), f"{f.get('confidence', 0):.2f}",
+                f.get("score", "-"), f"{f.get('heuristic_strength', 0):.2f}",
             ])
         story.append(_table(rows))
         for f in findings[:8]:
             reasons = "; ".join(f.get("reasons", []))
             story.append(_p(f"<b>Why {f.get('name', 'process')} (PID {f.get('pid')}) "
                             f"was flagged:</b> {reasons}"))
+            if f.get("recommendation"):
+                story.append(_p(f"<b>Recommended action:</b> {f['recommendation']}"))
     else:
         story.append(_p("No suspicious processes flagged by heuristics."))
 
@@ -215,7 +217,7 @@ def generate_report(report_data, filename=None):
     ))
     predictions = report_data.get("predictions") or {}
     if predictions.get("available"):
-        rows = [["Resource", "Current", "Trend", "Forecast", "Risk"]]
+        rows = [["Resource", "Current", "Trend", "Forecast", "Reliability", "Risk"]]
         for resource in ("cpu", "ram", "disk"):
             data = predictions.get(resource)
             if not data:
@@ -224,9 +226,15 @@ def generate_report(report_data, filename=None):
                 resource.upper(), f"{data.get('current', 0):.1f}%",
                 data.get("trend", "-"),
                 f"{data.get('range_low', 0)}-{data.get('range_high', 0)}%",
+                f"{data.get('reliability', 0) * 100:.0f}%",
                 data.get("risk", "-"),
             ])
         story.append(_table(rows))
+        low_reliability = [data for resource in ("cpu", "ram", "disk")
+                           if (data := predictions.get(resource))
+                           and data.get("reliability_note")]
+        for data in low_reliability:
+            story.append(_p(f"<b>Note:</b> {data['reliability_note']}"))
     else:
         story.append(_p("Not enough historical data for a forecast yet."))
 

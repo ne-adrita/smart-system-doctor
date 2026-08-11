@@ -2,8 +2,12 @@
 
 This module performs a *heuristic* analysis of running processes and open
 ports. It is NOT a malware scanner and must not be described as one. Findings
-are reported with a severity, a confidence value, explicit reasons and raw
-evidence so the user can judge for themselves.
+are reported with a severity, a *heuristic strength* value, explicit reasons,
+raw evidence and a recommended action so the user can judge for themselves.
+
+The heuristic strength is normalized evidence strength (a score of 0.9 means
+"strong heuristic evidence"), NOT a statistical probability that a process is
+malicious.
 
 Suspicion score weights (see ``config.py``):
 
@@ -22,9 +26,7 @@ Classification:
     40-59  High
     60+    Critical
 """
-import re
 import socket
-from collections import defaultdict
 
 import psutil
 
@@ -74,11 +76,11 @@ class SecurityAnalyzer:
         listeners (higher risk). Falls back to a loopback connect test if the
         OS denies network-connection introspection.
         """
-        ports = []
         raw = self._raw_listening_connections()
         if raw is None:
             return self._fallback_scan()
 
+        ports = []
         seen = set()
         for conn in raw:
             laddr = conn.get("laddr")
@@ -96,7 +98,7 @@ class SecurityAnalyzer:
             pid = conn.get("pid")
             proc_name = self._process_name(pid)
             service = self._service_name(port)
-            risk_level, reason = self._port_risk(port, service, exposed, ip)
+            risk_level, reason = self._port_risk(port, service, exposed)
             ports.append(PortInfo(
                 port=port,
                 protocol=conn.get("proto", "tcp"),
@@ -166,7 +168,7 @@ class SecurityAnalyzer:
             try:
                 if s.connect_ex(("127.0.0.1", port)) == 0:
                     service = Config.KNOWN_PORTS.get(port)
-                    risk, _ = self._port_risk(port, service, False, "127.0.0.1")
+                    risk, _ = self._port_risk(port, service, False)
                     ports.append(PortInfo(
                         port=port, protocol="tcp", local_address="127.0.0.1",
                         pid=None, process_name=None, service=service,
@@ -188,7 +190,7 @@ class SecurityAnalyzer:
         self._known_service_cache[port] = name
         return name
 
-    def _port_risk(self, port, service, exposed, ip):
+    def _port_risk(self, port, service, exposed):
         """Risk classification that does not brand common ports as malicious."""
         if not exposed:
             return "Low", "Listening on loopback only - not reachable from the network"
@@ -208,25 +210,66 @@ class SecurityAnalyzer:
             return None
 
     # -------------------------------------------------------------
-    # Suspicious process analysis
+    # Suspicious process analysis (two-stage pipeline)
     # -------------------------------------------------------------
     def analyze_processes(self, processes, connections_map=None):
-        """Run heuristic analysis over a process list.
+        """Run the two-stage heuristic analysis.
+
+        Stage 1 - cheap prefilter over *all* processes (no suspicious process
+        is skipped simply because it uses little CPU).
+        Stage 2 - transparent suspicion scoring for the prefiltered subset.
 
         ``connections_map`` maps pid -> list of connection dicts (precomputed
-        by the caller to bound cost). When unavailable, network checks are
-        skipped for processes without entries.
+        by the caller to bound cost).
         """
-        findings = []
         connections_map = connections_map or {}
-
-        for proc in processes:
+        candidates = self.prefilter_processes(processes, connections_map)
+        findings = []
+        for proc in candidates:
             result = self._score_process(proc, connections_map.get(proc["pid"], []))
             if result and result.score > 0:
                 findings.append(result)
-
         findings.sort(key=lambda f: f.score, reverse=True)
         return findings
+
+    def prefilter_processes(self, processes, connections_map=None):
+        """Select processes that exhibit at least one cheap suspicious signal.
+
+        Only the returned subset receives detailed scoring, so the scan stays
+        cheap while still covering low-resource suspicious processes.
+        """
+        connections_map = connections_map or {}
+        candidates = []
+        for proc in processes:
+            if self._cheap_signal(proc, connections_map.get(proc["pid"], [])):
+                candidates.append(proc)
+        return candidates
+
+    @staticmethod
+    def _cheap_signal(proc, connections):
+        name = (proc.get("name") or "").lower()
+        if any(keyword in name for keyword in SUSPICIOUS_KEYWORDS):
+            return True
+
+        exe = proc.get("exe") or ""
+        if exe:
+            lowered = exe.lower()
+            if any(pattern in lowered for pattern in SUSPICIOUS_PATH_PATTERNS):
+                return True
+
+        if (proc.get("cpu_percent") or 0.0) >= Config.SUSPICIOUS_CPU_PERCENT:
+            return True
+        if (proc.get("memory_percent") or 0.0) >= Config.SUSPICIOUS_MEMORY_PERCENT:
+            return True
+
+        ppid = proc.get("ppid")
+        if ppid is None or ppid <= 1:
+            return True
+
+        if any(c.get("remote_address") for c in connections):
+            return True
+
+        return False
 
     def _score_process(self, proc, connections):
         pid = proc.get("pid")
@@ -236,7 +279,6 @@ class SecurityAnalyzer:
         memory = proc.get("memory_percent") or 0.0
         username = proc.get("username") or ""
         ppid = proc.get("ppid")
-        ppid_name = proc.get("ppid_name")
 
         score = 0
         reasons = []
@@ -245,6 +287,7 @@ class SecurityAnalyzer:
             "exe": exe,
             "cpu": round(cpu, 1),
             "memory_percent": round(memory, 1),
+            "memory_rss": proc.get("memory_rss"),
             "username": username,
             "ppid": ppid,
         }
@@ -264,7 +307,8 @@ class SecurityAnalyzer:
             for pattern in SUSPICIOUS_PATH_PATTERNS:
                 if pattern in lowered_exe:
                     score += Config.WEIGHT_SUSPICIOUS_PATH
-                    reasons.append(f"Executable located in a temporary or user-writable directory: {exe}")
+                    reasons.append(
+                        f"Executable located in a temporary or user-writable directory: {exe}")
                     evidence["suspicious_path"] = exe
                     break
 
@@ -272,9 +316,7 @@ class SecurityAnalyzer:
         outbound = [c for c in connections if c.get("remote_address")]
         if outbound and score >= Config.NETWORK_FLAG_CUTOFF:
             score += Config.WEIGHT_NETWORK_ACTIVITY
-            reasons.append(
-                f"Established outbound network connections ({len(outbound)})"
-            )
+            reasons.append(f"Established outbound network connections ({len(outbound)})")
             evidence["connections"] = outbound[:5]
 
         # 4. High CPU.
@@ -309,10 +351,11 @@ class SecurityAnalyzer:
             pid=pid,
             name=name or f"PID {pid}",
             severity=classify_severity(score),
-            confidence=round(min(Config.CONFIDENCE_CEILING, score / 100.0), 2),
+            heuristic_strength=round(min(Config.CONFIDENCE_CEILING, score / 100.0), 2),
             score=score,
             reasons=reasons,
             evidence=evidence,
+            recommendation=_build_recommendation(name, pid, reasons),
         )
 
     # -------------------------------------------------------------
@@ -350,6 +393,19 @@ class SecurityAnalyzer:
             "color": color,
             "reasons": reasons,
         }
+
+
+def _build_recommendation(name, pid, reasons):
+    """Construct a human-readable recommended action for a finding."""
+    recs = [f"Inspect process '{name}' (PID {pid})"]
+    joined = " ".join(reasons).lower()
+    if "network" in joined:
+        recs.append("verify its outbound network destinations")
+    if "directory" in joined or "location" in joined:
+        recs.append("confirm the executable location is legitimate")
+    if "cpu" in joined or "memory" in joined:
+        recs.append("check whether its resource usage is expected")
+    return ". ".join(recs) + "."
 
 
 def _is_loopback(ip):

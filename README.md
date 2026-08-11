@@ -29,7 +29,7 @@ It provides a professional dark dashboard, live charts, transparent health/secur
 - **Process monitoring** — sortable list (CPU/RAM/PID/name), on-demand process details (PID, exe, username, parent, threads, connections, open files).
 - **Safe process termination** — protected-process list, graceful-terminate-first flow, explicit confirmation, force-kill only as a second-level action.
 - **System Health Score** — transparent rule-based 0–100 score with per-factor impact and reasons.
-- **Heuristic Security Analysis** — suspicion scoring with severity, confidence, reasons, and evidence for every flagged process.
+- **Heuristic Security Analysis** — two-stage scan covering *all* processes: a cheap prefilter selects suspicious candidates, then transparent suspicion scoring with severity, heuristic strength, reasons, evidence, and a recommended action.
 - **Open Port Analysis** — distinguishes loopback-only listeners from externally exposed services, with known-service labelling.
 - **Trend-Based Predictive Analysis** — linear-regression forecasts of CPU, RAM and disk from SQLite history.
 - **Recommendation engine** — rule-based, actionable suggestions with severity levels.
@@ -218,7 +218,7 @@ Transparent rule-based scoring. Every factor returns its impact and reason:
   "score": 72,
   "status": "Fair",
   "factors": [
-    { "factor": "RAM", "impact": -15, "reason": "RAM usage is at 82.0% (above 80%)" }
+    { "factor": "RAM", "impact": -15, "reason": "RAM usage is at 82.0% (above the 60% threshold - reduced by 15 points)" }
   ]
 }
 ```
@@ -231,7 +231,7 @@ Transparent rule-based scoring. Every factor returns its impact and reason:
 | 40–59 | Poor |
 | 0–39 | Critical |
 
-Penalties (configurable): CPU ≥ 80% → −30, ≥ 60% → −12; RAM same; disk ≥ 85% → −20, ≥ 70% → −10; process count > 500 → −10.
+Penalties are **gradual**, not step-like: usage is compared against a low threshold and the penalty grows continuously (capped), so a reading of 79.9% and 80.1% do not produce wildly different scores. Defaults: CPU/RAM penalty above 60% up to 40 points, disk above 70% up to 30 points, and process count above 500 up to 10 points (all configurable via `HEALTH_*` environment variables).
 
 ---
 
@@ -251,16 +251,22 @@ Penalties (configurable): CPU ≥ 80% → −30, ≥ 60% → −12; RAM same; di
 
 Classification: **0–19 Low**, **20–39 Moderate**, **40–59 High**, **60+ Critical**.
 
-Every finding explains *why* it was flagged and carries a confidence value (capped at 0.9) and raw evidence:
+The scan is a two-stage pipeline so that no suspicious process is missed:
+
+1. **Cheap prefilter over every running process** — flags candidates by suspicious filename keyword, suspicious executable path, very high CPU/RAM, an orphaned parent, or established outbound connections. This is deliberately cheap (no per-process introspection).
+2. **Detailed scoring for the candidate subset** — gathers executable, username and connection evidence only for candidates, then combines the weighted signals above.
+
+Every finding explains *why* it was flagged and carries a **heuristic strength** value (0–0.9) — the normalized strength of the heuristic evidence, **not** a probability of malware — plus raw evidence and a recommended action:
 
 ```json
 {
   "pid": 1234,
   "name": "example",
   "severity": "Moderate",
-  "confidence": 0.48,
+  "heuristic_strength": 0.48,
   "reasons": ["Executable located in a temporary or user-writable directory: /tmp/foo"],
-  "evidence": { "name": "example", "exe": "/tmp/foo", "cpu": 2.1 }
+  "evidence": { "name": "example", "exe": "/tmp/foo", "cpu": 2.1 },
+  "recommendation": "Inspect process 'example' (PID 1234). Confirm the executable location is legitimate."
 }
 ```
 
@@ -288,13 +294,15 @@ Historical measurements → data cleaning → linear regression → trend → sh
     "forecast": 80.5,
     "range_low": 76.2,
     "range_high": 84.8,
+    "reliability": 0.87,
+    "reliability_note": null,
     "risk": "Moderate",
     "model": "linear regression (least squares) over recent history"
   }
 }
 ```
 
-The forecast is a statistical extrapolation with a plausible band from residual spread — indicative, not guaranteed.
+The forecast is a statistical extrapolation with a plausible band from residual spread — indicative, not guaranteed. Each forecast also reports its **reliability** (the R² of the linear fit): when recent data is highly variable and fits a straight line poorly, the reliability drops below 0.3, a note is shown, and the forecast should not be treated as trustworthy.
 
 ---
 

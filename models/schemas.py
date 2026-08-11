@@ -3,8 +3,6 @@ import dataclasses
 from datetime import datetime
 from typing import Any, List, Optional
 
-from config import Config
-
 
 @dataclasses.dataclass
 class ApiError:
@@ -58,10 +56,11 @@ class SecurityFinding:
     pid: int
     name: str
     severity: str
-    confidence: float
+    heuristic_strength: float
     score: int
     reasons: List[str]
     evidence: dict
+    recommendation: str = ""
 
     def to_dict(self) -> dict:
         return dataclasses.asdict(self)

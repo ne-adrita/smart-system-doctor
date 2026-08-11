@@ -4,6 +4,11 @@ This is honest trend-based forecasting built on historical records stored in
 SQLite. A least-squares linear regression is fit over the recent history for
 each resource, then extrapolated a short horizon.
 
+Reliability: the coefficient of determination (R²) is reported so users can
+see how well the historical data actually fits a linear trend. A low R² means
+the recent data is highly variable and the forecast should not be treated as
+trustworthy.
+
 Important: this is NOT a machine-learning model. Forecasts are statistical
 extrapolations of observed trends and should never be interpreted as
 guarantees of future behaviour.
@@ -16,21 +21,32 @@ from utils.logging_utils import get_logger
 
 logger = get_logger(__name__)
 
+RELIABILITY_THRESHOLD = 0.3  # below this, the trend is not reliable
+
 
 def linear_regression(points):
-    """Fit y = a + b*x via least squares. Returns (a, b)."""
+    """Fit y = a + b*x via least squares.
+
+    Returns ``(a, b, r_squared)`` where ``r_squared`` is the coefficient of
+    determination for the fit.
+    """
     n = len(points)
     if n < 2:
-        return (points[0] if points else 0.0), 0.0
+        r2 = 1.0 if n == 1 else 0.0
+        return (points[0] if points else 0.0), 0.0, r2
     xs = list(range(n))
     mean_x = sum(xs) / n
     mean_y = sum(points) / n
     denom = sum((x - mean_x) ** 2 for x in xs)
     if denom == 0:
-        return mean_y, 0.0
+        return mean_y, 0.0, 0.0
     b = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, points)) / denom
     a = mean_y - b * mean_x
-    return a, b
+
+    ss_res = sum((y - (a + b * x)) ** 2 for x, y in zip(xs, points))
+    ss_tot = sum((y - mean_y) ** 2 for y in points)
+    r_squared = 1.0 if ss_tot == 0 else 1.0 - ss_res / ss_tot
+    return a, b, r_squared
 
 
 def _trend_label(slope):
@@ -54,7 +70,7 @@ def _risk_level(current, trend, forecast_peak):
 def _forecast_series(points, name):
     """Produce a forecast dict for one resource series."""
     current = round(points[-1], 2)
-    a, b = linear_regression(points)
+    a, b, r_squared = linear_regression(points)
 
     # Residual standard deviation => plausible forecast band.
     residuals = [y - (a + b * i) for i, y in enumerate(points)]
@@ -73,6 +89,14 @@ def _forecast_series(points, name):
     low = max(0.0, round(next_val - 2 * spread, 1))
     high = min(100.0, round(next_val + 2 * spread, 1))
 
+    reliability = max(0.0, min(1.0, r_squared))
+    if reliability < RELIABILITY_THRESHOLD:
+        reliability_note = (
+            "Forecast reliability is low because recent system usage is highly variable."
+        )
+    else:
+        reliability_note = None
+
     return {
         "current": current,
         "trend": trend,
@@ -80,6 +104,8 @@ def _forecast_series(points, name):
         "forecast": round(next_val, 1),
         "range_low": low,
         "range_high": high,
+        "reliability": round(reliability, 3),
+        "reliability_note": reliability_note,
         "risk": _risk_level(current, trend, forecast_peak),
         "model": "linear regression (least squares) over recent history",
         "sample_count": n,
@@ -105,9 +131,9 @@ def get_predictions(hours=2):
         "disk": [r["disk"] for r in history if r.get("disk") is not None],
     }
     result = {"available": True, "based_on": f"last {len(history)} recorded samples"}
-    for name, points in series.items():
+    for resource, points in series.items():
         if len(points) >= Config.PREDICTION_MIN_SAMPLES:
-            result[name] = _forecast_series(points, name)
+            result[resource] = _forecast_series(points, resource)
         else:
-            result[name] = None
+            result[resource] = None
     return result

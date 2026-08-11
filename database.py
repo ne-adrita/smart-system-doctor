@@ -87,7 +87,7 @@ def init_db():
             pid INTEGER,
             name TEXT,
             severity TEXT,
-            confidence REAL,
+            heuristic_strength REAL,
             score INTEGER,
             reasons TEXT,
             evidence TEXT
@@ -127,6 +127,12 @@ def init_db():
     c.execute("CREATE INDEX IF NOT EXISTS idx_ports_time ON port_events(timestamp)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_recommendations_time ON recommendations(timestamp)")
 
+    # Migration: v4.0 -> v4.0.1 renamed the security finding measure from
+    # "confidence" to the more accurate "heuristic_strength".
+    cols = [row[1] for row in c.execute("PRAGMA table_info(security_events)").fetchall()]
+    if "heuristic_strength" not in cols and "confidence" in cols:
+        c.execute("ALTER TABLE security_events RENAME COLUMN confidence TO heuristic_strength")
+
     conn.commit()
 
 
@@ -164,11 +170,11 @@ def record_security_event(finding):
     get_conn().execute(
         """
         INSERT INTO security_events
-            (timestamp, pid, name, severity, confidence, score, reasons, evidence)
+            (timestamp, pid, name, severity, heuristic_strength, score, reasons, evidence)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (_now(), finding.get("pid"), finding.get("name"), finding.get("severity"),
-         finding.get("confidence"), finding.get("score"),
+         finding.get("heuristic_strength"), finding.get("score"),
          json.dumps(finding.get("reasons", [])),
          json.dumps(finding.get("evidence", {}), default=str)),
     )
@@ -275,7 +281,7 @@ def get_recent_security_events(limit=20):
             "pid": r["pid"],
             "name": r["name"],
             "severity": r["severity"],
-            "confidence": r["confidence"],
+            "heuristic_strength": r["heuristic_strength"],
             "score": r["score"],
             "reasons": json.loads(r["reasons"] or "[]"),
             "evidence": json.loads(r["evidence"] or "{}"),

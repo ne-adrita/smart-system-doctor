@@ -8,7 +8,6 @@ CPU percentage is computed from per-process CPU-time deltas so the first call
 does not return a misleading ``0.0``.
 """
 import time
-from collections import defaultdict
 
 import psutil
 

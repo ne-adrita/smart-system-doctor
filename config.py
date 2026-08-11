@@ -5,6 +5,7 @@ variables. No sensitive values are hard-coded in the source tree.
 """
 import os
 import platform
+import tempfile
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -76,6 +77,7 @@ class Config:
     HISTORY_INTERVAL = _env_int("HISTORY_INTERVAL", 10)
     SECURITY_SCAN_INTERVAL = _env_int("SECURITY_SCAN_INTERVAL", 15)
     PORT_SCAN_INTERVAL = _env_int("PORT_SCAN_INTERVAL", 30)
+    PRUNE_INTERVAL = _env_int("PRUNE_INTERVAL", 3600)
 
     # --- Database -------------------------------------------------------
     HISTORY_RETENTION_DAYS = _env_int("HISTORY_RETENTION_DAYS", 14)
@@ -104,12 +106,20 @@ class Config:
     EXTERNALLY_EXPOSED_BONUS = _env_int("EXTERNALLY_EXPOSED_BONUS", 15)
 
     # --- Health scoring --------------------------------------------------
-    HEALTH_CPU_HIGH = _env_float("HEALTH_CPU_HIGH", 80.0)
-    HEALTH_CPU_MEDIUM = _env_float("HEALTH_CPU_MEDIUM", 60.0)
-    HEALTH_RAM_HIGH = _env_float("HEALTH_RAM_HIGH", 80.0)
-    HEALTH_RAM_MEDIUM = _env_float("HEALTH_RAM_MEDIUM", 60.0)
-    HEALTH_DISK_HIGH = _env_float("HEALTH_DISK_HIGH", 85.0)
-    HEALTH_DISK_MEDIUM = _env_float("HEALTH_DISK_MEDIUM", 70.0)
+    # Gradual penalty model: penalty grows from the LOW threshold up to
+    # MAX_PENALTY at a rate of SCALE points per usage percentage point.
+    HEALTH_CPU_LOW = _env_float("HEALTH_CPU_LOW", 60.0)
+    HEALTH_CPU_MAX_PENALTY = _env_int("HEALTH_CPU_MAX_PENALTY", 40)
+    HEALTH_CPU_SCALE = _env_float("HEALTH_CPU_SCALE", 1.0)
+    HEALTH_RAM_LOW = _env_float("HEALTH_RAM_LOW", 60.0)
+    HEALTH_RAM_MAX_PENALTY = _env_int("HEALTH_RAM_MAX_PENALTY", 40)
+    HEALTH_RAM_SCALE = _env_float("HEALTH_RAM_SCALE", 1.0)
+    HEALTH_DISK_LOW = _env_float("HEALTH_DISK_LOW", 70.0)
+    HEALTH_DISK_MAX_PENALTY = _env_int("HEALTH_DISK_MAX_PENALTY", 30)
+    HEALTH_DISK_SCALE = _env_float("HEALTH_DISK_SCALE", 1.0)
+    HEALTH_PROCESS_THRESHOLD = _env_int("HEALTH_PROCESS_THRESHOLD", 500)
+    HEALTH_PROCESS_MAX_PENALTY = _env_int("HEALTH_PROCESS_MAX_PENALTY", 10)
+    HEALTH_PROCESS_SCALE = _env_float("HEALTH_PROCESS_SCALE", 0.1)
 
     # --- Predictions -----------------------------------------------------
     PREDICTION_HORIZON_POINTS = _env_int("PREDICTION_HORIZON_POINTS", 5)
@@ -165,7 +175,11 @@ class Config:
 
 class TestingConfig(Config):
     FLASK_DEBUG = False
-    DATABASE_PATH = ":memory:"
+    # Use a fresh temporary file per test process. ":memory:" looks nice but
+    # each thread-local connection would open its own empty in-memory database.
+    DATABASE_PATH = tempfile.NamedTemporaryFile(
+        suffix=".db", prefix="ssd-test-", delete=False
+    ).name
     HISTORY_INTERVAL = 60
     SECURITY_SCAN_INTERVAL = 60
     PORT_SCAN_INTERVAL = 60

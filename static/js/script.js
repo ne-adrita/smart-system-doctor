@@ -279,8 +279,10 @@ function renderPredictions(preds) {
         html += `<li>
             <strong>${key.toUpperCase()}</strong>
             <span class="badge ${trendBadge(d.trend)}">${esc(d.trend)}</span>
+            <span class="badge badge-gray">reliability ${(d.reliability * 100).toFixed(0)}%</span>
             <div class="muted small">Current ${d.current.toFixed(1)}% → forecast ${d.range_low}-${d.range_high}%</div>
             <div class="muted small">Risk: ${esc(d.risk)}</div>
+            ${d.reliability_note ? `<div class="muted small warn">${esc(d.reliability_note)}</div>` : ""}
         </li>`;
     }
     html += "</ul>";
@@ -412,7 +414,7 @@ function renderSecurity(data) {
                 <span class="finding-name">${esc(f.name)}</span>
                 <span class="badge ${severityBadge(f.severity)}">${esc(f.severity)}</span>
                 <span class="badge badge-blue">score ${f.score}</span>
-                <span class="badge badge-gray">confidence ${(f.confidence * 100).toFixed(0)}%</span>
+                <span class="badge badge-gray">strength ${(f.heuristic_strength * 100).toFixed(0)}%</span>
                 <span class="muted small">PID ${f.pid}</span>
             </div>
             <ul class="finding-reasons">${f.reasons.map(r => `<li>• ${esc(r)}</li>`).join("")}</ul>
