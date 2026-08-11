@@ -17,7 +17,7 @@
             </div>
         </div>
         <div class="top-status">
-            <span id="connectionState" class="pill pill-good">● Connected</span>
+            <span id="connectionState" class="pill pill-warn">● Connecting…</span>
             <span id="lastUpdated" class="muted">Last updated: --:--:--</span>
         </div>
     </header>
@@ -71,10 +71,12 @@
             <div class="grid-2">
                 <div class="card">
                     <h2>System Health Factors</h2>
+                    <div class="section-meta"><span id="updated-health" class="updated-stamp">Waiting for data…</span><span id="stale-health" class="stale-flag"></span></div>
                     <div id="healthFactors">Loading…</div>
                 </div>
                 <div class="card">
                     <h2>Top Recommendations</h2>
+                    <div class="section-meta"><span id="updated-recommendations" class="updated-stamp">Waiting for data…</span><span id="stale-recommendations" class="stale-flag"></span></div>
                     <div id="recommendations">Loading…</div>
                 </div>
             </div>
@@ -83,16 +85,19 @@
                 <div class="card">
                     <h2>Trend Predictions</h2>
                     <p class="muted small">Trend-based forecasting from recorded history — indicative only.</p>
+                    <div class="section-meta"><span id="updated-predictions" class="updated-stamp">Waiting for data…</span><span id="stale-predictions" class="stale-flag"></span></div>
                     <div id="predictions">Loading…</div>
                 </div>
                 <div class="card">
                     <h2>System Snapshot</h2>
+                    <div class="section-meta"><span id="updated-system" class="updated-stamp">Waiting for data…</span><span id="stale-system" class="stale-flag"></span></div>
                     <div id="systemSnapshot">Loading…</div>
                 </div>
             </div>
 
             <div class="card">
                 <h2>Top Processes by CPU</h2>
+                <div class="section-meta"><span id="updated-processes" class="updated-stamp">Waiting for data…</span><span id="stale-processes" class="stale-flag"></span></div>
                 <table class="table">
                     <thead><tr><th>PID</th><th>Name</th><th>CPU %</th><th>RAM %</th><th>Status</th><th></th></tr></thead>
                     <tbody id="topProcesses">Loading…</tbody>
@@ -117,6 +122,10 @@
                     <div class="chart-box"><h3>RAM %</h3><canvas id="chartRam"></canvas></div>
                 </div>
                 <div class="grid-2">
+                    <div class="chart-box"><h3>Disk %</h3><canvas id="chartDisk"></canvas></div>
+                    <div class="chart-box"><h3>Process Count</h3><canvas id="chartProcesses"></canvas></div>
+                </div>
+                <div class="grid-2">
                     <div class="chart-box"><h3>Health Score</h3><canvas id="chartHealth"></canvas></div>
                     <div class="chart-box"><h3>Security Score</h3><canvas id="chartSecurity"></canvas></div>
                 </div>
@@ -139,6 +148,7 @@
                         <button class="btn" id="refreshProcesses">Refresh</button>
                     </div>
                 </div>
+                <div class="section-meta"><span id="updated-processes-tab" class="updated-stamp">Waiting for data…</span><span id="stale-processes-tab" class="stale-flag"></span></div>
                 <div class="table-wrap">
                     <table class="table">
                         <thead>
@@ -160,6 +170,7 @@
                 <h2>Heuristic Suspicious Process &amp; Security Analysis</h2>
                 <p class="muted small">This engine applies heuristic rules and can produce false positives.
                 It is <strong>not</strong> a malware scanner or a replacement for antivirus / EDR software.</p>
+                <div class="section-meta"><span id="updated-security" class="updated-stamp">Waiting for data…</span><span id="stale-security" class="stale-flag"></span></div>
                 <div id="securitySummary" class="security-summary">Loading…</div>
                 <h3>Suspicious Findings</h3>
                 <div id="findings">Loading…</div>
@@ -171,6 +182,7 @@
             <div class="card">
                 <h2>Open Port Analysis</h2>
                 <p class="muted small">Distinguishes loopback listeners (local only) from services exposed on all interfaces.</p>
+                <div class="section-meta"><span id="updated-ports" class="updated-stamp">Waiting for data…</span><span id="stale-ports" class="stale-flag"></span></div>
                 <div id="portsSummary" class="security-summary">Loading…</div>
                 <div class="table-wrap">
                     <table class="table">
@@ -216,6 +228,11 @@
         <div class="modal modal-narrow">
             <button class="modal-close" id="terminateClose">✕</button>
             <div id="terminateBody"></div>
+            <div class="modal-actions">
+                <button class="btn" id="btnTerminate">Terminate</button>
+                <button class="btn btn-danger" id="btnForceKill">Force Kill</button>
+            </div>
+            <div id="terminateStatus" class="status-line"></div>
         </div>
     </div>
 
