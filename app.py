@@ -309,6 +309,32 @@ def _downsample(rows, max_points=config.DOWNLOAD_POINTS):
     return [rows[int(i * step)] for i in range(max_points)]
 
 
+def _query_int(name, default, minimum, maximum):
+    """Parse an integer query parameter, rejecting out-of-range values.
+
+    Returns ``(value, error_response)``. ``error_response`` is None when the
+    value is valid, otherwise it is a ready-to-return ``fail(...)`` tuple.
+    """
+    raw = request.args.get(name)
+    if raw is None or raw == "":
+        return default, None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return None, fail(
+            "INVALID_PARAMETER",
+            f"Parameter '{name}' must be an integer between {minimum} and {maximum}.",
+            400,
+        )
+    if not (minimum <= value <= maximum):
+        return None, fail(
+            "INVALID_PARAMETER",
+            f"Parameter '{name}' must be between {minimum} and {maximum}.",
+            400,
+        )
+    return value, None
+
+
 def create_app():
     app = Flask(__name__)
     app.config["DEBUG"] = config.FLASK_DEBUG
@@ -377,8 +403,16 @@ def create_app():
     def api_processes():
         sort_by = request.args.get("sort_by", "cpu")
         order = request.args.get("order", "desc")
-        limit = request.args.get("limit", 50, type=int)
+        limit, err = _query_int("limit", 50, 1, 200)
+        if err:
+            return err
         filter_ = request.args.get("filter", "all")
+        if filter_ not in ("all", "suspicious", "cpu-heavy"):
+            return fail(
+                "INVALID_PARAMETER",
+                "Parameter 'filter' must be one of: all, suspicious, cpu-heavy.",
+                400,
+            )
         processes = process_monitor.get_processes(
             sort_by=sort_by, order=order, limit=limit, filter_=filter_
         )
@@ -441,8 +475,12 @@ def create_app():
     # ----------------------------------------------------------------
     @app.route("/api/history")
     def api_history():
-        hours = request.args.get("hours", type=int)
-        limit = request.args.get("limit", config.MAX_HISTORY_POINTS, type=int)
+        hours, err = _query_int("hours", 24, 1, 168)
+        if err:
+            return err
+        limit, err = _query_int("limit", config.MAX_HISTORY_POINTS, 1, 1000)
+        if err:
+            return err
         history = _downsample(get_history(hours=hours, limit=limit))
         return ok({"history": history, "count": len(history)})
 
@@ -452,7 +490,9 @@ def create_app():
 
     @app.route("/api/predictions")
     def api_predictions():
-        hours = request.args.get("hours", 2, type=int)
+        hours, err = _query_int("hours", 2, 1, 168)
+        if err:
+            return err
         predictions = get_predictions(hours=hours)
         return ok(predictions)
 
@@ -547,7 +587,9 @@ def create_app():
     # ----------------------------------------------------------------
     @app.route("/history")
     def legacy_history():
-        limit = request.args.get("limit", 50, type=int)
+        limit, err = _query_int("limit", 50, 1, 1000)
+        if err:
+            return err
         return ok({"data": get_history(limit=limit)})
 
     @app.route("/statistics")

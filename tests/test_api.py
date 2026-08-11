@@ -117,3 +117,51 @@ def test_unknown_route_returns_envelope(client):
     assert res.status_code == 404
     assert body["success"] is False
     assert body["error"]["code"] == "NOT_FOUND"
+
+
+def test_process_limit_out_of_range(client):
+    res = client.get("/api/processes?limit=100000")
+    body = res.get_json()
+    assert res.status_code == 400
+    assert body["success"] is False
+    assert body["error"]["code"] == "INVALID_PARAMETER"
+
+
+def test_process_limit_non_integer(client):
+    res = client.get("/api/processes?limit=abc")
+    body = res.get_json()
+    assert res.status_code == 400
+    assert body["error"]["code"] == "INVALID_PARAMETER"
+
+
+def test_process_limit_valid_range(client):
+    data = _get(client, "/api/processes?limit=5")
+    assert len(data["processes"]) <= 5
+
+
+def test_invalid_process_filter(client):
+    res = client.get("/api/processes?filter=bogus")
+    body = res.get_json()
+    assert res.status_code == 400
+    assert body["error"]["code"] == "INVALID_PARAMETER"
+
+
+def test_history_hours_out_of_range(client):
+    res = client.get("/api/history?hours=9999")
+    body = res.get_json()
+    assert res.status_code == 400
+    assert body["error"]["code"] == "INVALID_PARAMETER"
+
+
+def test_history_limit_out_of_range(client):
+    res = client.get("/api/history?limit=99999")
+    body = res.get_json()
+    assert res.status_code == 400
+    assert body["error"]["code"] == "INVALID_PARAMETER"
+
+
+def test_predictions_hours_out_of_range(client):
+    res = client.get("/api/predictions?hours=0")
+    body = res.get_json()
+    assert res.status_code == 400
+    assert body["error"]["code"] == "INVALID_PARAMETER"

@@ -16,7 +16,7 @@ from utils.logging_utils import get_logger
 logger = get_logger(__name__)
 
 CHEAP_ATTRS = ("pid", "name", "ppid", "status", "create_time", "num_threads",
-               "memory_info", "memory_percent")
+               "memory_info", "memory_percent", "username")
 
 SORT_KEYS = {"cpu", "ram", "pid", "name"}
 
@@ -66,7 +66,7 @@ class ProcessMonitor:
         procs = list(
             psutil.process_iter(
                 ["pid", "name", "ppid", "status", "create_time", "num_threads",
-                 "memory_percent"]
+                 "memory_percent", "username"]
             )
         )
         self._warm_cpu_cache(procs)
@@ -88,6 +88,7 @@ class ProcessMonitor:
                 "memory_percent": round(mem_percent, 2),
                 "memory_rss": rss,
                 "memory_rss_human": _human_rss(rss),
+                "username": p.info.get("username"),
                 "status": p.info.get("status"),
                 "num_threads": p.info.get("num_threads"),
                 "create_time": p.info.get("create_time"),

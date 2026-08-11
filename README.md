@@ -1,6 +1,6 @@
 # Smart System Doctor Pro
 
-A local OS system monitoring, diagnostic, performance analysis, and **heuristic cybersecurity health-checking** application. It continuously analyzes system resources, processes, listening services, network activity, and historical performance data to identify potential problems and provide actionable recommendations — all running locally on your own machine.
+**Smart System Doctor Pro** is a local OS diagnostic and system-health monitoring application designed to analyze CPU, memory, disk, processes, network activity, and historical system behavior. It combines rule-based system health scoring, heuristic security analysis, process monitoring, port analysis, recommendations, and short-term trend-based predictive analysis to help users identify performance and potential security issues — all running locally on your own machine.
 
 > **Security engine disclaimer:** The security analysis is *heuristic* (behavior- and signature-hint-based) and **is not** a malware scanner, antivirus, or a replacement for enterprise antivirus/EDR software. Findings indicate behaviour worth reviewing and may include **false positives**.
 
@@ -207,6 +207,8 @@ On failure:
 
 Legacy aliases (`/history`, `/statistics`, `/system-info`, `/process/<pid>`) are kept for compatibility.
 
+**Parameter validation:** query parameters are validated and bounded — `limit` on `/api/processes` is 1–200, `limit` on `/api/history` is 1–1000, and `hours` is 1–168. Out-of-range or non-integer values return `400 INVALID_PARAMETER` instead of an unbounded query.
+
 ---
 
 ## Health Scoring
@@ -324,17 +326,65 @@ SQLite with tables: `system_metrics`, `process_snapshots`, `security_events`, `p
 python -m pytest tests/ -q
 ```
 
-Covers health scoring, security heuristics, predictions/regression, and API endpoints (including invalid and protected PIDs).
+Covers health scoring, security heuristics, predictions/regression, process control, API endpoints (including parameter validation, invalid and protected PIDs), and database behaviour (table creation, insert/retrieve, retention, pruning).
 
 ---
 
 ## Limitations
 
-- The security engine is **heuristic** and can produce **false positives**; it is not a substitute for enterprise antivirus/EDR software.
-- Predictive analysis is **trend-based forecasting** and not a guarantee of future behaviour.
-- Port analysis depends on OS permissions; on platforms that restrict connection introspection, it falls back to a loopback-only check of well-known ports.
-- Process inspection can be restricted by OS privileges (some system processes refuse `AccessDenied` on metadata).
-- This is a local diagnostic tool; it is not designed for distributed or production network deployment.
+1. Security analysis is heuristic and is **not** a replacement for antivirus or EDR software.
+2. Suspicious-process detection may produce **false positives**.
+3. Predictive analysis uses short-term statistical trends and does **not** guarantee future system behavior.
+4. Some process and network information depends on operating-system permissions.
+5. The application is designed primarily as a **local diagnostic tool**.
+
+---
+
+## Major Improvements and Fixes
+
+This section documents the significant changes made during development, from the original prototype to the final submission-ready version.
+
+### Original Problems → Final Improvements
+
+1. **Monolithic backend.** Too much monitoring and business logic was concentrated in `app.py`. → Introduced a service-based architecture: `system_monitor`, `process_monitor`, `security_analyzer`, `health_analyzer`, `prediction_service`, `recommendation_service`, `report_service`.
+
+2. **Heavy `/data` endpoint.** Monitoring, security scanning, port scanning, database logging and diagnostics were performed together on every request. → Introduced a background worker with **separate intervals** for expensive operations, keeping fast metrics responsive.
+
+3. **Background worker pruning bug.** History pruning reused the moderate-metrics timer, so it effectively never ran. → Created a **dedicated pruning timer** (`last_prune`) independent of `last_moderate`, `last_history`, `last_security` and `last_ports`, with a regression test.
+
+4. **Weak security detection.** Analysis relied too heavily on process-name checks and resource rankings. → Implemented **multi-signal heuristic analysis** using process name, executable path, CPU, RAM, network connections, parent process and privilege information.
+
+5. **Limited process coverage.** Suspicious low-resource processes could be missed. → Implemented a two-stage pipeline: **all processes → lightweight prefilter → suspicious candidates → detailed analysis**.
+
+6. **Misleading malware terminology.** Simple heuristics could not justify claims of malware detection. → Replaced with accurate wording: **Heuristic Security Analysis**, **Suspicious Process**, **Potential Security Risk**, **Heuristic Warning**.
+
+7. **Misleading confidence score.** A raw score divided by 100 was presented as confidence. → Replaced with **heuristic strength** — clearly documented as normalized heuristic evidence strength (capped at 0.9), not a probability.
+
+8. **Oversimplified prediction.** Forecasts were based on simplistic calculations. → Implemented **linear regression** with slope, **R²** reliability, residual analysis, forecast range and risk level.
+
+9. **Misleading AI claim.** Simple statistical forecasting could be misrepresented as AI. → Clearly described as **Short-Term Trend-Based Predictive Analysis**.
+
+10. **Abrupt health-score thresholds.** A small metric change could produce a very large penalty. → Replaced step thresholds with **gradual penalty** calculations.
+
+11. **Fake network health factor.** Network appeared as a health factor without meaningful analysis. → **Removed** the placeholder factor (network is genuinely analyzed only in security/port analysis).
+
+12. **Unsafe process termination.** Termination lacked safeguards. → Added PID validation, protected-process list, graceful-terminate-first flow, force kill as an explicit second-level action, `AccessDenied`/`NoSuchProcess` handling and a confirmation UI.
+
+13. **Unsafe Flask configuration.** The app could run with `debug=True` on `0.0.0.0`. → Safe defaults: **`127.0.0.1`**, **`debug=False`**.
+
+14. **Poor API error handling.** Responses were inconsistent. → Introduced a standardized JSON response envelope (`success` / `data` / `error` / `timestamp`) and consistent error codes.
+
+15. **Broad exception handling.** Generic `except: pass` could hide real errors. → Replaced with specific exception handling and structured logging.
+
+16. **Weak port analysis.** An open port could be misinterpreted as automatically dangerous. → Port analysis now considers port, service, listening address, exposure (loopback vs all interfaces) and risk.
+
+17. **Runtime database dependency.** The project could depend on a pre-existing SQLite database. → Database initialization **auto-creates** all tables on first run.
+
+18. **Lack of historical analytics.** The dashboard relied on temporary frontend data. → Historical metrics are persisted in SQLite and used for history, statistics, trend analysis and prediction.
+
+19. **No proper testing structure.** Important logic was insufficiently tested. → Added tests for health, security, prediction, process control, API (including parameter validation) and database (including pruning).
+
+20. **Poor project packaging.** Development files could be included in submissions. → Added `.gitignore` and prepared a **clean final submission package** (no `.venv`, `.git`, database, logs, reports, caches or OS metadata in the delivered ZIP).
 
 ---
 

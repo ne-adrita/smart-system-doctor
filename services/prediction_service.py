@@ -118,8 +118,8 @@ def get_predictions(hours=2):
     if len(history) < Config.PREDICTION_MIN_SAMPLES:
         return {
             "available": False,
-            "reason": f"Need at least {Config.PREDICTION_MIN_SAMPLES} historical "
-                      "samples to build a forecast.",
+            "reason": "Not enough historical data for reliable forecasting "
+                      f"(need at least {Config.PREDICTION_MIN_SAMPLES} samples).",
             "cpu": None,
             "ram": None,
             "disk": None,

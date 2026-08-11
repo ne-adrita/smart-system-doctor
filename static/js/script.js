@@ -362,12 +362,12 @@ async function loadProcesses() {
     if (!el) return;
     const sort = document.getElementById("procSort").value;
     const filter = document.getElementById("procFilter").value.trim().toLowerCase();
-    el.innerHTML = "<tr><td colspan='9' class='muted'>Loading…</td></tr>";
+    el.innerHTML = "<tr><td colspan='8' class='muted'>Loading…</td></tr>";
     try {
         const data = await getJSON(`${API.processes}?sort_by=${sort}&limit=200`);
         let rows = data.processes;
         if (filter) rows = rows.filter(p => (p.name || "").toLowerCase().includes(filter));
-        if (!rows.length) { el.innerHTML = "<tr><td colspan='9' class='muted'>No matching processes.</td></tr>"; return; }
+        if (!rows.length) { el.innerHTML = "<tr><td colspan='8' class='muted'>No matching processes.</td></tr>"; return; }
         el.innerHTML = rows.map(p => {
             const cpuColor = p.cpu_percent > 70 ? "badge-red" : p.cpu_percent > 40 ? "badge-orange" : "badge-gray";
             const memColor = p.memory_percent > 50 ? "badge-red" : p.memory_percent > 25 ? "badge-orange" : "badge-gray";
@@ -377,9 +377,8 @@ async function loadProcesses() {
                 <td><span class="badge ${cpuColor}">${(p.cpu_percent || 0).toFixed(1)}</span></td>
                 <td><span class="badge ${memColor}">${(p.memory_percent || 0).toFixed(1)}</span></td>
                 <td>${esc(p.memory_rss_human || "-")}</td>
-                <td>${p.num_threads ?? "-"}</td>
                 <td>${esc(p.status || "-")}</td>
-                <td>${p.ppid ?? "-"}</td>
+                <td>${esc(p.username || "-")}</td>
                 <td>
                     <button class="btn btn-sm" onclick="showProcessDetails(${p.pid})">Details</button>
                     <button class="btn btn-sm btn-danger" onclick="requestTerminate(${p.pid})">Terminate</button>
@@ -387,7 +386,7 @@ async function loadProcesses() {
             </tr>`;
         }).join("");
     } catch (err) {
-        el.innerHTML = "<tr><td colspan='9' class='muted'>Failed to load processes.</td></tr>";
+        el.innerHTML = "<tr><td colspan='8' class='muted'>Failed to load processes.</td></tr>";
     }
 }
 

@@ -9,7 +9,15 @@ logger = get_logger(__name__)
 
 def validate_pid(pid):
     """Return a positive integer PID or raise ValueError."""
+    if isinstance(pid, bool):
+        raise ValueError("Invalid PID: must be an integer")
     try:
+        if isinstance(pid, float) or not isinstance(pid, int):
+            # Accept numeric strings, reject anything with a fractional part.
+            if isinstance(pid, str) and not pid.strip().lstrip("-").isdigit():
+                raise ValueError("Invalid PID: must be an integer")
+            if isinstance(pid, float) and not pid.is_integer():
+                raise ValueError("Invalid PID: must be an integer")
         pid = int(pid)
     except (TypeError, ValueError):
         raise ValueError("Invalid PID: must be an integer")

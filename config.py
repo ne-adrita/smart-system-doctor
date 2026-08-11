@@ -72,7 +72,6 @@ class Config:
 
     # --- Monitoring intervals (seconds) ---------------------------------
     # Fast metrics (CPU / RAM) are computed on demand by the API.
-    MONITOR_INTERVAL = _env_int("MONITOR_INTERVAL", 2)
     DISK_NETWORK_INTERVAL = _env_int("DISK_NETWORK_INTERVAL", 5)
     HISTORY_INTERVAL = _env_int("HISTORY_INTERVAL", 10)
     SECURITY_SCAN_INTERVAL = _env_int("SECURITY_SCAN_INTERVAL", 15)
@@ -101,9 +100,6 @@ class Config:
 
     # Confidence range for heuristic findings (never claim certainty).
     CONFIDENCE_CEILING = _env_float("CONFIDENCE_CEILING", 0.9)
-
-    # --- Port analysis ---------------------------------------------------
-    EXTERNALLY_EXPOSED_BONUS = _env_int("EXTERNALLY_EXPOSED_BONUS", 15)
 
     # --- Health scoring --------------------------------------------------
     # Gradual penalty model: penalty grows from the LOW threshold up to
