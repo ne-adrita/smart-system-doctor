@@ -403,7 +403,7 @@ def create_app():
     def api_processes():
         sort_by = request.args.get("sort_by", "cpu")
         order = request.args.get("order", "desc")
-        limit, err = _query_int("limit", 50, 1, 200)
+        limit, err = _query_int("limit", config.MAX_PROCESS_LIMIT, 1, config.MAX_PROCESS_LIMIT)
         if err:
             return err
         filter_ = request.args.get("filter", "all")

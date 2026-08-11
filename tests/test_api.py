@@ -59,6 +59,27 @@ def test_processes_sort(client):
     by_cpu = _get(client, "/api/processes?sort_by=cpu&limit=20")
     cpus = [p["cpu_percent"] for p in by_cpu["processes"]]
     assert cpus == sorted(cpus, reverse=True)
+    by_ram = _get(client, "/api/processes?sort_by=ram&limit=20")
+    mems = [p["memory_percent"] for p in by_ram["processes"]]
+    assert mems == sorted(mems, reverse=True)
+    by_pid = _get(client, "/api/processes?sort_by=pid&order=asc&limit=20")
+    pids = [p["pid"] for p in by_pid["processes"]]
+    assert pids == sorted(pids)
+    by_name = _get(client, "/api/processes?sort_by=name&order=asc&limit=20")
+    names = [p["name"] for p in by_name["processes"]]
+    assert names == sorted(names, key=str.lower)
+
+
+def test_processes_asc_cpu_order(client):
+    by_cpu = _get(client, "/api/processes?sort_by=cpu&order=asc&limit=20")
+    cpus = [p["cpu_percent"] for p in by_cpu["processes"]]
+    assert cpus == sorted(cpus)
+
+
+def test_process_invalid_sort_falls_back(client):
+    data = _get(client, "/api/processes?sort_by=bogus&limit=10")
+    assert isinstance(data["processes"], list)
+    assert len(data["processes"]) > 0
 
 
 def test_history_endpoint(client):

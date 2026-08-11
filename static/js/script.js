@@ -284,23 +284,32 @@ async function fetchHealth() {
 
 /* ---------------- Section: processes ---------------- */
 async function fetchProcesses() {
-    const data = await apiRequest(`${API.processes}?limit=200&sort_by=cpu`);
+    const data = await apiRequest(`${API.processes}?limit=1000&sort_by=cpu`);
     state.processes = data.processes;
     markUpdated("processes");
     renderProcessTable();
     renderTopProcesses();
 }
 
+/* Dropdown sort values (cpu/ram/pid/name) -> fields in the API rows. */
+const sortFieldMap = {
+    cpu: "cpu_percent",
+    ram: "memory_percent",
+    pid: "pid",
+    name: "name"
+};
+
 function renderProcessTable() {
     const el = document.getElementById("processTable");
     if (!el) return;
     const sort = document.getElementById("procSort").value;
+    const field = sortFieldMap[sort] || "cpu_percent";
     const filter = document.getElementById("procFilter").value.trim().toLowerCase();
     let rows = state.processes;
     if (filter) rows = rows.filter(p => (p.name || "").toLowerCase().includes(filter));
     rows = rows.slice().sort((a, b) => {
-        const av = a[sort] ?? 0, bv = b[sort] ?? 0;
-        if (sort === "name") return String(av).localeCompare(String(bv));
+        const av = a[field] ?? 0, bv = b[field] ?? 0;
+        if (field === "name") return String(av).localeCompare(String(bv));
         return bv - av;
     });
     if (!rows.length) { el.innerHTML = "<tr><td colspan='8' class='muted'>No matching processes.</td></tr>"; return; }

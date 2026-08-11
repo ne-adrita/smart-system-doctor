@@ -82,6 +82,7 @@ class Config:
     HISTORY_RETENTION_DAYS = _env_int("HISTORY_RETENTION_DAYS", 14)
     MAX_HISTORY_POINTS = _env_int("MAX_HISTORY_POINTS", 200)
     DOWNLOAD_POINTS = _env_int("DOWNLOAD_POINTS", 120)
+    MAX_PROCESS_LIMIT = _env_int("MAX_PROCESS_LIMIT", 1000)
 
     # --- Security analysis ----------------------------------------------
     # Suspicion score weights (documented in README).

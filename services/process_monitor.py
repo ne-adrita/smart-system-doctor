@@ -18,7 +18,14 @@ logger = get_logger(__name__)
 CHEAP_ATTRS = ("pid", "name", "ppid", "status", "create_time", "num_threads",
                "memory_info", "memory_percent", "username")
 
-SORT_KEYS = {"cpu", "ram", "pid", "name"}
+# API sort keys (query params) -> fields present in each returned row.
+SORT_FIELD_MAP = {
+    "cpu": "cpu_percent",
+    "ram": "memory_percent",
+    "pid": "pid",
+    "name": "name",
+}
+SORT_KEYS = set(SORT_FIELD_MAP)
 
 
 class ProcessMonitor:
@@ -59,13 +66,13 @@ class ProcessMonitor:
 
     def get_processes(self, sort_by="cpu", order="desc", limit=50, filter_="all"):
         """Return a cheap process list (no exe/username/connections)."""
-        if sort_by not in SORT_KEYS:
-            sort_by = "cpu"
+        sort_by = sort_by if sort_by in SORT_FIELD_MAP else "cpu"
+        sort_field = SORT_FIELD_MAP[sort_by]
         reverse = order.lower() == "desc"
 
         procs = list(
             psutil.process_iter(
-                ["pid", "name", "ppid", "status", "create_time", "num_threads",
+                ["pid", "name", "ppid", "status", "create_time",
                  "memory_percent", "username"]
             )
         )
@@ -74,23 +81,30 @@ class ProcessMonitor:
         rows = []
         for p in procs:
             pid = p.info["pid"]
-            mem_percent = p.info.get("memory_percent") or 0.0
             try:
-                memory_rss = p.info.get("memory_info", None)
-                rss = memory_rss.rss if memory_rss else 0
-            except Exception:
+                mem_info = p.memory_info()
+                rss = mem_info.rss
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 rss = 0
+            try:
+                mem_percent = p.memory_percent()
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                mem_percent = 0.0
+            try:
+                num_threads = p.num_threads()
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                num_threads = None
             rows.append({
                 "pid": pid,
                 "name": p.info.get("name"),
                 "ppid": p.info.get("ppid"),
                 "cpu_percent": self._cpu_percent(pid),
-                "memory_percent": round(mem_percent, 2),
+                "memory_percent": round(mem_percent or 0.0, 2),
                 "memory_rss": rss,
                 "memory_rss_human": _human_rss(rss),
                 "username": p.info.get("username"),
                 "status": p.info.get("status"),
-                "num_threads": p.info.get("num_threads"),
+                "num_threads": num_threads,
                 "create_time": p.info.get("create_time"),
             })
 
@@ -99,8 +113,7 @@ class ProcessMonitor:
         elif filter_ == "cpu-heavy":
             rows = [r for r in rows if r["cpu_percent"] > 30]
 
-        rows.sort(key=lambda r: (r.get(sort_by) if r.get(sort_by) is not None else 0),
-                  reverse=reverse)
+        rows.sort(key=_sort_key(sort_field), reverse=reverse)
         return rows[:limit] if limit else rows
 
     def get_process_details(self, pid):
@@ -131,6 +144,17 @@ class ProcessMonitor:
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 details["ppid_name"] = None
         return details
+
+
+def _sort_key(field):
+    """Return a key function that sorts rows by a named field safely.
+
+    Numeric fields fall back to 0 when missing/None; the name field sorts
+    case-insensitively and falls back to an empty string.
+    """
+    if field == "name":
+        return lambda r: (r.get("name") or "").lower()
+    return lambda r: (r.get(field) if r.get(field) is not None else 0)
 
 
 def _human_rss(rss):
