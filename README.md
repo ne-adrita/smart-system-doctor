@@ -115,6 +115,7 @@ smart-system-doctor/
     ├── test_health.py
     ├── test_prediction.py
     ├── test_process_control.py
+    ├── test_process_monitor.py
     ├── test_pruning.py
     └── test_security.py
 ```
@@ -210,7 +211,7 @@ On failure:
 
 Legacy aliases (`/history`, `/statistics`, `/system-info`, `/process/<pid>`) are kept for compatibility.
 
-**Parameter validation:** query parameters are validated and bounded — `limit` on `/api/processes` is 1–200, `limit` on `/api/history` is 1–1000, and `hours` is 1–168. Out-of-range or non-integer values return `400 INVALID_PARAMETER` instead of an unbounded query.
+**Parameter validation:** query parameters are validated and bounded — `limit` on `/api/processes` is 1–1000, `limit` on `/api/history` is 1–1000, and `hours` is 1–168. Out-of-range or non-integer values return `400 INVALID_PARAMETER` instead of an unbounded query.
 
 ---
 
@@ -349,7 +350,7 @@ Implementation notes:
 python -m pytest tests/ -q
 ```
 
-Covers health scoring, security heuristics, predictions/regression, process control, API endpoints (including parameter validation, invalid and protected PIDs), and database behaviour (table creation, insert/retrieve, retention, pruning).
+Covers health scoring, security heuristics, predictions/regression, process monitoring and control (fields, sorting, memory, real CPU, details, termination), API endpoints (including parameter validation, invalid and protected PIDs), and database behaviour (table creation, insert/retrieve, retention, pruning).
 
 ---
 

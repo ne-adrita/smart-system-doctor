@@ -68,7 +68,16 @@ def _terminate(pid, force=False):
         p.terminate()
 
     gone, alive = psutil.wait_procs([p], timeout=Config.TERMINATE_TIMEOUT)
-    if alive:
+    # A zombie has already exited — it only lingers until its parent reaps
+    # it, so it must not count as "still running".
+    still_running = []
+    for proc in alive:
+        try:
+            if proc.status() != psutil.STATUS_ZOMBIE:
+                still_running.append(proc)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            continue
+    if still_running:
         return {"terminated": False, "reason": "Process still running after terminate signal"}
     return {"terminated": True}
 

@@ -61,8 +61,9 @@ class ProcessMonitor:
         if not entry:
             return 0.0
         _, _, pct = entry
-        cores = max(psutil.cpu_count(logical=True) or 1, 1)
-        return round(pct / cores, 2)
+        # psutil semantics: 100% == one fully-busy core (may exceed 100 for
+        # multi-threaded processes). Do NOT divide by the core count here.
+        return round(pct, 2)
 
     def get_processes(self, sort_by="cpu", order="desc", limit=50, filter_="all"):
         """Return a cheap process list (no exe/username/connections)."""
@@ -117,8 +118,22 @@ class ProcessMonitor:
         return rows[:limit] if limit else rows
 
     def get_process_details(self, pid):
-        """Return full on-demand details for a single process."""
+        """Return full on-demand details for a single process.
+
+        Raises ``psutil.NoSuchProcess`` when the process is gone and
+        ``psutil.AccessDenied`` when basic identiy attributes cannot be read,
+        so the API can report a clear error. Individual fields that are
+        inaccessible fall back to None.
+        """
         p = psutil.Process(pid)
+        # Primary identity check: if even the name cannot be read the whole
+        # process is inaccessible and the caller should get a 403.
+        try:
+            p.name()
+        except (psutil.NoSuchProcess, psutil.ZombieProcess):
+            raise
+        except psutil.AccessDenied:
+            raise psutil.AccessDenied(f"pid={pid}") from None
         details = {
             "pid": p.pid,
             "name": _safe(lambda: p.name()),
@@ -134,7 +149,7 @@ class ProcessMonitor:
             "cpu_percent": self._cpu_percent(pid),
             "memory_percent": _safe(lambda: round(p.memory_percent(), 2)),
             "memory": _safe(lambda: _mem_dict(p.memory_info())),
-            "connections": _safe(lambda: _conns(p.connections())),
+            "connections": _safe(lambda: _conns(p.net_connections())),
             "open_files": _safe(lambda: _files(p.open_files())),
         }
         ppid = details.get("ppid")

@@ -1,4 +1,8 @@
 """API integration tests using Flask's test client."""
+import subprocess
+import sys
+import time
+
 import pytest
 
 import app as app_module
@@ -74,6 +78,28 @@ def test_processes_asc_cpu_order(client):
     by_cpu = _get(client, "/api/processes?sort_by=cpu&order=asc&limit=20")
     cpus = [p["cpu_percent"] for p in by_cpu["processes"]]
     assert cpus == sorted(cpus)
+
+
+def test_process_api_cpu_is_real(client):
+    """The /api/processes CPU value must reflect actual load, not 0/demo
+    numbers. Regression: cpu_percent used to be divided by core count."""
+    busy = subprocess.Popen(
+        [sys.executable, "-c", "while True: pass"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    try:
+        _get(client, "/api/processes?limit=100")  # establish baseline
+        time.sleep(2.0)
+        data = _get(client, "/api/processes?limit=1000")
+        row = next((p for p in data["processes"] if p["pid"] == busy.pid), None)
+        assert row is not None
+        assert row["cpu_percent"] > 50, (
+            f"busy process reported cpu_percent={row['cpu_percent']}"
+        )
+    finally:
+        if busy.poll() is None:
+            busy.kill()
+            busy.wait()
 
 
 def test_process_invalid_sort_falls_back(client):

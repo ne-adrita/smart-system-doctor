@@ -1,8 +1,11 @@
 """Process control tests: PID validation, protection, graceful vs force kill."""
+import subprocess
+import sys
+
 import psutil
 import pytest
 
-from utils.process_utils import terminate_process, validate_pid
+from utils.process_utils import _terminate, terminate_process, validate_pid
 
 
 def test_validate_pid_accepts_positive_int():
@@ -28,9 +31,6 @@ def test_nonexistent_pid_raises():
 
 def test_terminate_flags_force_true():
     # Spawn a short-lived child so we can exercise _terminate logic paths.
-    import subprocess
-    import sys
-
     proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
     try:
         result = terminate_process(proc.pid, force=False)
@@ -40,3 +40,46 @@ def test_terminate_flags_force_true():
     finally:
         if proc.poll() is None:
             proc.kill()
+
+
+def test_zombie_process_counts_as_terminated(monkeypatch):
+    """A zombie has already exited; it must not be reported as still running
+    just because its parent has not reaped it yet."""
+    class FakeProc:
+        pid = 4242
+
+        def status(self):
+            return psutil.STATUS_ZOMBIE
+
+        def terminate(self):
+            pass
+
+        def kill(self):
+            pass
+
+    fake = FakeProc()
+    monkeypatch.setattr(psutil, "Process", lambda pid: fake)
+    monkeypatch.setattr(psutil, "wait_procs", lambda procs, timeout: ([], [fake]))
+    result = _terminate(4242, force=False)
+    assert result["terminated"] is True
+
+
+def test_true_running_process_counts_as_not_terminated(monkeypatch):
+    class FakeProc:
+        pid = 4243
+
+        def status(self):
+            return psutil.STATUS_RUNNING
+
+        def terminate(self):
+            pass
+
+        def kill(self):
+            pass
+
+    fake = FakeProc()
+    monkeypatch.setattr(psutil, "Process", lambda pid: fake)
+    monkeypatch.setattr(psutil, "wait_procs", lambda procs, timeout: ([], [fake]))
+    result = _terminate(4243, force=False)
+    assert result["terminated"] is False
+    assert "still running" in result["reason"]

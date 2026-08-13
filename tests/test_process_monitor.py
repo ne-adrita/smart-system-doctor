@@ -108,6 +108,33 @@ def test_cpu_baseline_then_delta(monitor):
             proc.kill()
 
 
+def test_busy_process_reports_real_cpu_percent(monitor):
+    """A process burning one core must report a meaningful CPU percentage.
+
+    Regression: the CPU value used to be divided by the logical core count,
+    so a fully-busy single-thread process would show ~12%% on an 8-core host
+    instead of ~100%%.
+    """
+    busy = subprocess.Popen(
+        [sys.executable, "-c", "while True: pass"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    try:
+        monitor.get_processes(limit=0)  # establish the baseline
+        time.sleep(2.0)
+        rows = monitor.get_processes(limit=0)
+        row = next((r for r in rows if r["pid"] == busy.pid), None)
+        assert row is not None
+        assert row["cpu_percent"] > 50, (
+            f"burnt one core but cpu_percent={row['cpu_percent']}; "
+            "the /cores division bug is back"
+        )
+    finally:
+        if busy.poll() is None:
+            busy.kill()
+            busy.wait()
+
+
 def test_process_appears_and_disappears(monitor):
     proc = _spawn_sleep()
     try:
@@ -150,6 +177,22 @@ def test_details_nonexistent_pid_raises(monitor):
         monitor.get_process_details(99999999)
 
 
+def test_details_access_denied_raises(monkeypatch):
+    """A process whose identity cannot be read must surface AccessDenied so
+    the API can return a clear error instead of silently blank fields."""
+    real_process = psutil.Process()
+
+    class DeniedProcess:
+        pid = real_process.pid
+
+        def name(self):
+            raise psutil.AccessDenied(self.pid, "test")
+
+    monkeypatch.setattr("psutil.Process", lambda pid: DeniedProcess())
+    with pytest.raises(psutil.AccessDenied):
+        ProcessMonitor().get_process_details(real_process.pid)
+
+
 def test_filter_suspicious_returns_subset(monitor):
     all_rows = monitor.get_processes(limit=0)
     suspicious = monitor.get_processes(limit=0, filter_="suspicious")
@@ -157,3 +200,48 @@ def test_filter_suspicious_returns_subset(monitor):
         r["cpu_percent"] > 50 or r["memory_percent"] > 50 for r in suspicious
     )
     assert len(suspicious) <= len(all_rows)
+
+
+def test_inaccessible_process_does_not_crash_list(monitor, monkeypatch):
+    """A process that denies access to its memory info must not break the
+    whole process list. Column values fall back to safe defaults."""
+    real = psutil.Process()
+
+    class SquashyProcess:
+        """Wraps a real process but raises AccessDenied for memory fields."""
+
+        def __init__(self, inner):
+            self._inner = inner
+            p = inner.as_dict(ad_value=None)
+            self.info = {
+                "pid": p.get("pid"),
+                "name": p.get("name"),
+                "ppid": p.get("ppid"),
+                "status": p.get("status"),
+                "create_time": p.get("create_time"),
+                "memory_percent": p.get("memory_percent"),
+                "username": p.get("username"),
+            }
+
+        def cpu_times(self):
+            return self._inner.cpu_times()
+
+        def memory_info(self):
+            raise psutil.AccessDenied(self._inner.pid, "test")
+
+        def memory_percent(self):
+            raise psutil.AccessDenied(self._inner.pid, "test")
+
+        def num_threads(self):
+            return self._inner.num_threads()
+
+    wrapped = SquashyProcess(real)
+    monkeypatch.setattr(
+        "services.process_monitor.psutil.process_iter",
+        lambda attrs=None: [wrapped],
+    )
+    rows = monitor.get_processes(limit=10)
+    assert len(rows) == 1
+    assert rows[0]["memory_rss"] == 0
+    assert rows[0]["memory_percent"] == 0.0
+    assert "pid" in rows[0]
